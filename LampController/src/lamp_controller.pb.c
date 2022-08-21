@@ -9,7 +9,4 @@
 PB_BIND(lamp_controller_LampData, lamp_controller_LampData, AUTO)
 
 
-PB_BIND(lamp_controller_LampData_ElectricData, lamp_controller_LampData_ElectricData, AUTO)
-
-
 

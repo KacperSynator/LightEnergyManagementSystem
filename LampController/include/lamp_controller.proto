@@ -6,12 +6,10 @@ message LampData {
     string name = 1;
     float illuminance = 2;
     
-    message ElectricData {
-        float voltage = 1;
-        float current = 2;
-        float power = 3;
-        float energy = 4;
-        float frequency = 5;
-        float power_factor = 6;
-    }
+    float voltage = 3;
+    float current = 4;
+    float power = 5;
+    float energy = 6;
+    float frequency = 7;
+    float power_factor = 8;
 }
