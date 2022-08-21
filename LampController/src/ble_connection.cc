@@ -12,6 +12,22 @@ void BLEConnection::onWrite(BLECharacteristic* characteristic) {
     Serial.println("*********");
 }
 
+void Reconnect(BLEServer* server) {
+    delay(500);
+    server->startAdvertising(); 
+}
+
+void BLEConnection::onConnect(BLEServer* server) {
+    Serial.println("Connected");
+    connected_ = true;
+}
+
+void BLEConnection::onDisconnect(BLEServer* server) {
+    Serial.println("Disconnected");
+    Reconnect(server);
+    connected_ = false;
+}
+
 void BLEConnection::Setup() {
     BLEDevice::init("UART Service For ESP32");
 
@@ -32,30 +48,9 @@ void BLEConnection::Setup() {
 }
 
 void BLEConnection::SendData(const std::string& data) {
-    if (device_connected_) {
+    if (connected_) {
         tx_characteristic_->setValue(data);
         tx_characteristic_->notify();
         delay(10);
-    }
-}
-
-void BLEConnection::LoopIteration() {
-    Disconnecting();
-    Connecting();
-}
-
-void BLEConnection::Disconnecting() {
-    if (!device_connected_ && old_device_connected_) {
-        delay(500);  // give the bluetooth stack the chance to get things ready
-        server_->startAdvertising();
-        Serial.println("start advertising");
-        old_device_connected_ = device_connected_;
-    }
-}
-
-void BLEConnection::Connecting() {
-    if (device_connected_ && !old_device_connected_) {
-        Serial.println("Connecting");
-        old_device_connected_ = device_connected_;
     }
 }

@@ -15,21 +15,14 @@ const auto kTxUUID {"cea4c36a-1f89-4646-a368-704446233be2"};
 
 class BLEConnection : public BLEServerCallbacks, public BLECharacteristicCallbacks {
   public:
-    void onConnect(BLEServer* server) override { device_connected_ = true; }
-    void onDisconnect(BLEServer* server) override { device_connected_ = false; }
+    void onConnect(BLEServer* server) override;
+    void onDisconnect(BLEServer* server) override;
     void onWrite(BLECharacteristic *characteristic) override;
     void Setup();
-    void LoopIteration();
     void SendData(const std::string& data);
 
   private:
-    void Disconnecting();
-    void Connecting();
-    void Connected();
-
-
     BLEServer *server_{nullptr};
-    BLECharacteristic * tx_characteristic_{nullptr};
-    bool device_connected_{false};
-    bool old_device_connected_{false};
+    BLECharacteristic *tx_characteristic_{nullptr};
+    bool connected_{false};
 };
