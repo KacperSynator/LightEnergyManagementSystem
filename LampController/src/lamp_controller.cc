@@ -2,8 +2,7 @@
 
 namespace {
 
-bool encode_string(pb_ostream_t* stream, const pb_field_t* field, void* const* arg)
-{
+bool encode_string(pb_ostream_t* stream, const pb_field_t* field, void* const* arg) {
     const char* str = (const char*)(*arg);
 
     if (!pb_encode_tag_for_field(stream, field))
@@ -39,6 +38,26 @@ const std::string EncodeLampData(const lamp_controller_LampData& data) {
     return result;
 }
 
+bool TryReadDataTo(const float& data, float& dest) {
+    if (isnan(data)) return false;
+
+    dest = data;
+    return true;
+}
+
+bool ReadEnergyMeterData(lamp_controller_LampData& lamp_data, PZEM004Tv30& energy_meter) {
+    bool succes = true;
+
+    succes &= TryReadDataTo(energy_meter.voltage(), lamp_data.voltage);
+    succes &= TryReadDataTo(energy_meter.current(),lamp_data.current);
+    succes &= TryReadDataTo(energy_meter.power(), lamp_data.power);
+    succes &= TryReadDataTo(energy_meter.energy(), lamp_data.energy);
+    succes &= TryReadDataTo(energy_meter.frequency(), lamp_data.frequency);
+    succes &= TryReadDataTo(energy_meter.pf(), lamp_data.power_factor);
+
+    return succes;
+}
+
 }  // namespace
 
 
@@ -69,12 +88,11 @@ bool LampController::Setup() {
 
 void LampController::Loop() {
     lamp_data_.illuminance = light_meter_.readLightLevel();
-    lamp_data_.voltage = pzem_.voltage();
-    lamp_data_.current = pzem_.current();
-    lamp_data_.power = pzem_.power();
-    lamp_data_.energy = pzem_.energy();
-    lamp_data_.frequency = pzem_.frequency();
-    lamp_data_.power_factor = pzem_.pf();
+
+    if (!ReadEnergyMeterData(lamp_data_, pzem_))  {
+        Serial.println("Failed to read energy meter data!");
+    }
+    
     ble_connection_.SendData(EncodeLampData(lamp_data_));
     delay(1000);
 }
