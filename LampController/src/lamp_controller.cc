@@ -81,6 +81,11 @@ bool LampController::Setup() {
 
     pzem_.resetEnergy();
 
+    if (!lamp_dim_.Setup()) {
+        Serial.println("Lamp dim pwm setup failed!");
+        return false;
+    }
+
     return true;
 }
 
@@ -92,7 +97,12 @@ void LampController::Loop() {
     if (!ReadEnergyMeterData(lamp_data_, pzem_))  {
         Serial.println("Failed to read energy meter data!");
     }
-    
+
+    for(float duty_cycle = 0; duty_cycle <= 1.0; duty_cycle += 0.01) {
+        lamp_dim_.DutyCycle(duty_cycle);
+        delay(100);
+    }
+
     ble_connection_.SendData(EncodeLampData(lamp_data_));
     delay(1000);
 }
