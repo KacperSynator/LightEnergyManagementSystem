@@ -58,6 +58,10 @@ bool ReadEnergyMeterData(lamp_controller_LampData& lamp_data, PZEM004Tv30& energ
     return succes;
 }
 
+bool SetSleepDuration(uint64_t time_in_us) {
+    return ESP_OK == esp_sleep_enable_timer_wakeup(time_in_us);
+}
+
 }  // namespace
 
 
@@ -86,6 +90,11 @@ bool LampController::Setup() {
         return false;
     }
 
+    // if (!SetSleepDuration(sleep_duration_ * kMicroSecToSecFactor)) {
+    //     Serial.println("Failed to set sleep duration");
+    //     return false;
+    // }
+
     return true;
 }
 
@@ -98,11 +107,12 @@ void LampController::Loop() {
         Serial.println("Failed to read energy meter data!");
     }
 
-    for(float duty_cycle = 0; duty_cycle <= 1.0; duty_cycle += 0.01) {
-        lamp_dim_.DutyCycle(duty_cycle);
+    for(dim_duty_cycle_ = 0; dim_duty_cycle_  <= 1.0; dim_duty_cycle_  += 0.01) {
+        lamp_dim_.DutyCycle(dim_duty_cycle_ );
         delay(100);
     }
 
     ble_connection_.SendData(EncodeLampData(lamp_data_));
+    // esp_deep_sleep_start();
     delay(1000);
 }

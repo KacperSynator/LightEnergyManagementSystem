@@ -4,7 +4,7 @@
 
 const auto kSerialBaud{115200};
 
-LampController lamp_controller;
+RTC_DATA_ATTR LampController lamp_controller;
 
 void setup() {
   Serial.begin(kSerialBaud);

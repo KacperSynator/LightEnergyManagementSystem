@@ -18,6 +18,8 @@ const int kDimLedChannel{0};
 const int kDimPin{13};
 const int kDimPwmFreq{1000};
 const int kDimPwmResolution{16};
+const int kDefaultSleepDuration_s{1};
+const int kMicroSecToSecFactor{1000000};
 
 class LampController {
   public:
@@ -25,6 +27,9 @@ class LampController {
     void Loop();
 
   private:
+    // uint64_t sleep_duration_{kDefaultSleepDuration_s};
+    float dim_duty_cycle_{};
+
     lamp_controller_LampData lamp_data_;
     PwmHandler lamp_dim_{kDimLedChannel, kDimPin, kDimPwmFreq, kDimPwmResolution};
     BH1750 light_meter_;
