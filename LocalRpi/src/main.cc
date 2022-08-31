@@ -1,3 +1,5 @@
-#include <iostream>
+import hello;
 
-int main() {}
+int main() {
+    hello();
+}
