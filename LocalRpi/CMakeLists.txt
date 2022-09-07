@@ -1,34 +1,38 @@
 cmake_minimum_required(VERSION 3.16) # Lower versions should also be supported
 project(LocalRpi CXX)
 
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+add_library (libble++ SHARED IMPORTED)
+set_property(TARGET libble++ PROPERTY IMPORTED_LOCATION "/usr/local/lib/libble++.so") 
+
 # Program name and sources
-set (TARGET ${PROJECT_NAME})
 file (GLOB SOURCES "src/*.cc")
-file (GLOB MODULES "src/*.cpp")
+file (GLOB MODULES "src/*.cxx")
 
-# Add target to build iostream module
-add_custom_target(std_modules ALL
-    COMMAND ${CMAKE_COMMAND} -E echo "Building standard library modules"
-    COMMAND g++ -fmodules-ts -std=c++20 -c -x c++-system-header iostream
-    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-)
-
-# Function to set up modules in GCC
-function (prepare_for_module TGT)
-    target_compile_options(${TGT} PUBLIC -fmodules-ts)
-    set_property(TARGET ${TGT} PROPERTY CXX_STANDARD 20)
-    set_property(TARGET ${TGT} PROPERTY CXX_EXTENSIONS OFF)
-    add_dependencies(${TGT} std_modules)
+function(add_module name)
+    # using GCC
+    add_custom_target(${name}.pcm
+            COMMAND
+                ${CMAKE_CXX_COMPILER}
+                -std=c++20
+                -fmodules-ts
+                -c
+                ${CMAKE_CURRENT_SOURCE_DIR}/${ARGN}
+                -o ${name}.pcm
+                )
 endfunction()
 
-# Setup program modules object library
-set (MODULE_TARGET prog-modules)
-add_library(${MODULE_TARGET} OBJECT ${MODULES})
-prepare_for_module(${MODULE_TARGET})
+# using GCC
+add_compile_options(-fmodules-ts)
+add_module(hello src/hello.cxx)
+add_executable(${PROJECT_NAME} ${SOURCES})
 
-# Setup executable
-add_executable(${TARGET} ${SOURCES})
-prepare_for_module(${TARGET})
+target_link_options(${PROJECT_NAME} PUBLIC "LINKER:hello.pcm")
+add_dependencies(${PROJECT_NAME} hello.pcm)
+target_link_libraries(${PROJECT_NAME} PRIVATE bluetooth libble++ )
 
 # Add modules to application using object library
-target_link_libraries(${TARGET} PRIVATE ${MODULE_TARGET})
+
