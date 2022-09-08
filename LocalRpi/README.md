@@ -33,6 +33,17 @@ cd build && cmake ..
 sudo make install
 ```
 
+#### 3. Install protobuf (optional for .proto file modifcation)
+```bash
+sudo apt-get install protobuf-compiler
+```
+
+#### 3.5 Generate from .proto file
+```bash
+cd inc
+protoc --cpp_out=. lamp_controller.proto
+mv lamp_controller.pb.cc ../src
+```
 
 ### Errors 
 
