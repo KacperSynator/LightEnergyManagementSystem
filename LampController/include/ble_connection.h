@@ -9,8 +9,9 @@
 #include <Arduino.h>
 
 const auto kServiceUUID {"75b17eef-0276-4e5d-a97b-afc0eff7b4dd"};
-const auto kRxUUID {"ab5ba0ce-027f-4d68-a362-82bb281e5884"};
-const auto kTxUUID {"cea4c36a-1f89-4646-a368-704446233be2"};
+const auto kRxUUID {"85b17eef-0276-4e5d-a97b-afc0eff7b4dd"};
+const auto kTxUUID {"95b17eef-0276-4e5d-a97b-afc0eff7b4dd"};
+const auto kDeviceName {"LightController"};
 
 const auto kLampDimPin{13};
 class BLEConnection : public BLEServerCallbacks, public BLECharacteristicCallbacks {

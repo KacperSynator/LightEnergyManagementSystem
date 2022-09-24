@@ -29,7 +29,7 @@ void BLEConnection::onDisconnect(BLEServer* server) {
 }
 
 void BLEConnection::Setup() {
-    BLEDevice::init("UART Service For ESP32");
+    BLEDevice::init(kDeviceName);
 
     server_ = BLEDevice::createServer();
     server_->setCallbacks(this);
