@@ -11,6 +11,6 @@ set_property(TARGET libble++ PROPERTY IMPORTED_LOCATION "/usr/local/lib/libble++
 file (GLOB SOURCES "src/*.cc")
 
 add_executable(${PROJECT_NAME} ${SOURCES})
-target_include_directories(${PROJECT_NAME} PUBLIC "${PROJECT_SOURCE_DIR}/inc")
+target_include_directories(${PROJECT_NAME} PUBLIC "${PROJECT_SOURCE_DIR}/inc" "/usr/local/include")
 target_link_libraries(${PROJECT_NAME} PRIVATE bluetooth libble++)
 

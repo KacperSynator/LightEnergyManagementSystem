@@ -22,7 +22,7 @@ sudo apt-get --purge remove gcc-<your gcc version>
 
 #### 1. Install dependencies
 ```bash
-sudo apt-get install libboost-all-dev libbluetooth-dev cmake
+sudo apt-get install libboost-all-dev libbluetooth-dev cmake bluetooth pi-bluetooth bluez
 ```
 
 #### 2. Install libblepp
@@ -32,13 +32,24 @@ cd libblepp && mkdir build
 cd build && cmake ..
 sudo make install
 ```
+#### 3. Install protobuf
+Below code will install version 3.21.6 For latest version go to [Download protobuf](https://developers.google.com/protocol-buffers/docs/downloads). Pick version for `cpp` and with `tar.gz` extension.
 
-#### 3. Install protobuf (optional for .proto file modifcation)
+```bash
+wget https://github.com/protocolbuffers/protobuf/releases/download/v21.6/protobuf-cpp-3.21.6.tar.gz
+tar –xvzf protobuf-cpp-3.21.6.tar.gz
+cd protobuf-cpp-3.21.6
+mkdir build && cd build
+cmake -Dprotobuf_BUILD_TESTS=OFF ..
+sudo make install
+```
+
+#### 4. Install protobuf-compiler (optional for .proto file modifcation)
 ```bash
 sudo apt-get install protobuf-compiler
 ```
 
-#### 3.5 Generate from .proto file
+#### 4.5 Generate from .proto file
 ```bash
 cd inc
 protoc --cpp_out=. lamp_controller.proto

@@ -15,7 +15,7 @@ using ScanCallback = std::function<void()>;
 
 class BLEConnection {
    public:
-    BLEConnection(const std::string& service_uuid);
+    BLEConnection(const std::string& service_uuid, const std::string& device_address);
     void Scan();
 
    private:
