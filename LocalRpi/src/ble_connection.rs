@@ -3,8 +3,6 @@ use btleplug::platform::{Manager, Adapter, Peripheral};
 use futures::stream::StreamExt;
 use std::error::Error;
 use std::fmt;
-use std::time::Duration;
-use tokio::time;
 use log::{debug, info, error};
 use uuid::{Uuid, uuid};
 
@@ -48,7 +46,8 @@ impl BLEConnection {
         Ok(Self { adapter })
     }
 
-    pub async fn read_devices_data(&self) -> Result<(), Box<dyn Error>> {  
+    pub async fn read_devices_data(&self) -> Result<Vec<Vec<u8>>, Box<dyn Error>> {
+        let mut result_data = Vec::new();
         let peripherals = scan_for_peripherals(&self.adapter).await?;
 
         for peripheral in peripherals.iter() {
@@ -69,8 +68,9 @@ impl BLEConnection {
                 }
 
                 subscribe_to_read_characteristic(peripheral).await?;
-                    
-                info!("Received data: {:?}", read_data(peripheral).await?);
+                
+                result_data.push(read_data(peripheral).await?);
+                debug!("Received data: {:?}", result_data.last());
                     
                 info!("Disconnecting from read peripheral {:?}...", &local_name);
                 peripheral.disconnect().await?;
@@ -79,36 +79,31 @@ impl BLEConnection {
                 debug!("Skipping unknown peripheral {:?}", peripheral);
             }
         }
-        Ok(())
+
+        Ok(result_data)
     }
 
     pub async fn write_to_device(&self, device_mac: &String, msg: &String) -> Result<(), Box<dyn Error> > {
         let peripherals = scan_for_peripherals(&self.adapter).await?;
 
-        for peripheral in peripherals.iter() {
-            
-            let is_connected = peripheral.is_connected().await?;
-            let mac = peripheral.address();
-
+        if let Some(peripheral) = find_peripheral_by_mac(peripherals, device_mac) {
             debug!(
                 "Peripheral {:?} is connected: {:?}",
-                &mac, is_connected
+                device_mac, peripheral.is_connected().await?
             );
 
-            if mac.to_string() == *device_mac {
-                info!("Found matching write peripheral {:?}...", &mac);
+            info!("Found matching write peripheral {:?}...", &device_mac);
+            discover_services(&peripheral, device_mac).await?;
+            send_data(&peripheral, &msg).await?;
                 
-                discover_services(peripheral, device_mac).await?;
-                send_data(peripheral, &msg).await?;
-                    
-                info!("Disconnecting from write peripheral {:?}...", mac);
-                peripheral.disconnect().await?;
-            
-            } else {
-                debug!("Skipping unknown peripheral {:?}", peripheral);
-            }
-        }
-        Ok(())
+            info!("Disconnecting from write peripheral {:?}...", &device_mac);
+            peripheral.disconnect().await?;
+
+            return Ok(());
+        };
+
+        error!("Write characteristic: {:?} not found", device_mac);
+        Err(Box::new(BLEConnectionError("Write characteristic not found".into())))
     }
 }
 
@@ -116,7 +111,6 @@ async fn scan_for_peripherals(adapter: &Adapter) -> Result<Vec<Peripheral>, Box<
     info!("Scanning for peripherals");
     debug!("Adapter info {:?}", adapter.adapter_info().await?);
 
-    time::sleep(Duration::from_millis(100)).await;
     let peripherals = adapter.peripherals().await?;
 
     if peripherals.is_empty() {
@@ -125,6 +119,19 @@ async fn scan_for_peripherals(adapter: &Adapter) -> Result<Vec<Peripheral>, Box<
     }
 
     Ok(peripherals)
+}
+
+fn find_peripheral_by_mac(peripherals: Vec<Peripheral>, device_mac: &String) -> Option<Peripheral> {
+    let mut matched_peripherals = peripherals
+                                        .into_iter()
+                                        .filter(|x| x.address().to_string() == *device_mac)
+                                        .collect::<Vec<_>>();
+                                
+    if matched_peripherals.is_empty() {
+        return None;
+    }
+
+    Some(matched_peripherals.remove(0))
 }
 
 async fn get_peripheral_local_name(peripheral: &Peripheral) -> Result<String, Box<dyn Error>> {
@@ -173,17 +180,13 @@ async fn discover_services(peripheral: &Peripheral, name: &String) -> Result<(),
         }
     }
 
-    let is_connected = peripheral.is_connected().await?;
-
     info!(
         "Now connected ({:?}) to peripheral {:?}.",
-        is_connected, &name
+        peripheral.is_connected().await?, &name
     );
 
-    if is_connected {
-        debug!("Discover peripheral {:?} services...", name);
-        peripheral.discover_services().await?;
-    }
+    debug!("Discover peripheral {:?} services...", name);
+    peripheral.discover_services().await?;
 
     Ok(())
 }
