@@ -23,4 +23,8 @@ rand = "0.8.5"
 pretty_env_logger = "0.4.0"
 dbus = "0.9.6"
 bluez-async = "0.6.0"
+protobuf = "3"
 
+[build-dependencies]
+protobuf-codegen = "3"
+protoc-rust = "^2.0"

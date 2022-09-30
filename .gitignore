@@ -31,7 +31,4 @@
 *.out
 *.app
 
-build*
-gcc-*
-
 target/
