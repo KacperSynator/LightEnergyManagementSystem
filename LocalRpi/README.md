@@ -5,7 +5,7 @@
 
 #### 1. Install dependencies
 ```bash
-sudo apt-get install build-essential bluez bluetooth pi-bluetooth libbluetooth-dev curl
+sudo apt-get install build-essential bluez bluetooth pi-bluetooth libbluetooth-dev protobuf-compiler curl
 ```
 
 #### 2. Install rust
