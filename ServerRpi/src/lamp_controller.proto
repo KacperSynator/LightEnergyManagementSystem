@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package lamp_controller;
+
+message LampData {
+    string name = 1;
+    float illuminance = 2;
+    
+    float voltage = 3;
+    float current = 4;
+    float power = 5;
+    float energy = 6;
+    float frequency = 7;
+    float power_factor = 8;
+}
