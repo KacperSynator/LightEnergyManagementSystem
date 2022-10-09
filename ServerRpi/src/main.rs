@@ -8,6 +8,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     pretty_env_logger::init();
 
     let db_handler = DBHandler::new()?;
+    db_handler.get_devices()?;
     
     Ok(())
 }
