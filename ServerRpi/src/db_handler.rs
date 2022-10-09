@@ -38,31 +38,13 @@ impl DBHandler {
     }
 
     pub fn add_device(&self, lamp_data: &LampData) -> Result<(), Box<dyn Error>> {
-        self.connection.execute(
-            "INSERT INTO devices (name, mac_address) VALUES (?1, ?2)",
-            (&lamp_data.device_name, &lamp_data.device_mac)
-        )?;
+        add_device_to_db(&self.connection, &lamp_data)?;
 
         Ok(())
     }
 
     pub fn get_devices(&self) -> Result<Vec<LampData>, Box<dyn Error>> {
-        let mut stmt = self.connection.prepare("SELECT * FROM devices")?;
-        let devices_iter = stmt.query_map([], |row| {
-            let mut lamp_data = LampData::new();
-            lamp_data.device_name = row.get(1)?;
-            lamp_data.device_mac = row.get(2)?;
-
-            Ok(lamp_data)
-        })?;
-
-        let devices = devices_iter
-                .map(|device| { device.unwrap() })
-                .collect::<Vec<_>>();
-
-        debug!("Devices received from db\n\t{:?}", devices);
-
-        Ok( devices )
+        Ok(get_devices_from_db(&self.connection)?)
     }
 
     fn create_tables(&self) -> Result<(), Box<dyn Error>> {
@@ -86,7 +68,7 @@ fn create_devices_table(connection: &Connection) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn create_lamp_data_table(connection: &Connection) ->Result<(), Box<dyn Error>> {
+fn create_lamp_data_table(connection: &Connection) -> Result<(), Box<dyn Error>> {
     connection.execute(
         "CREATE TABLE IF NOT EXISTS LampData (
             id_lamp_data INTEGER PRIMARY KEY,
@@ -106,39 +88,75 @@ fn create_lamp_data_table(connection: &Connection) ->Result<(), Box<dyn Error>> 
     Ok(())
 }
 
+fn add_device_to_db(connection: &Connection, lamp_data: &LampData) -> Result<(), Box<dyn Error>> {
+    connection.execute(
+        "INSERT INTO devices (name, mac_address) VALUES (?1, ?2)",
+        (&lamp_data.device_name, &lamp_data.device_mac)
+    )?;
+
+    Ok(())
+}
+
+fn get_devices_from_db(connection: &Connection) -> Result<Vec<LampData>, Box<dyn Error>> {
+    let mut stmt = connection.prepare("SELECT * FROM devices")?;
+        let devices_iter = stmt.query_map([], |row| {
+            let mut lamp_data = LampData::new();
+            lamp_data.device_name = row.get(1)?;
+            lamp_data.device_mac = row.get(2)?;
+
+            Ok(lamp_data)
+        })?;
+
+        let devices = devices_iter
+                .map(|device| { device.unwrap() })
+                .collect::<Vec<_>>();
+
+        debug!("Devices received from db\n\t{:?}", devices);
+
+        Ok( devices )
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
 
+    fn connect_to_dummy_db() -> Result<Connection, Box<dyn Error>> {
+        Ok(Connection::open_in_memory()?)
+    }
+
+    fn create_tables(connection: &Connection) -> Result<(), Box<dyn Error>> {
+        create_devices_table(&connection)?;
+        create_lamp_data_table(&connection)?;
+
+        Ok(())
+    }
+
     #[test]
     fn connect_to_database() -> Result<(), Box<dyn Error>> {
         DBHandler::new()?;
-        Ok(())
-    }
-
-    #[test]
-    fn create_tables() -> Result<(), Box<dyn Error>> {
-        let db_handler = DBHandler::new()?;
-        db_handler.create_tables()?;
 
         Ok(())
     }
 
     #[test]
-    fn add_default_device() -> Result<(), Box<dyn Error>> {
-        let db_handler = DBHandler::new()?;
+    fn creating_tables() -> Result<(), Box<dyn Error>> {
+        let connection = connect_to_dummy_db()?;
+        create_tables(&connection)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn add_and_get_device() -> Result<(), Box<dyn Error>> {
+        let connection = connect_to_dummy_db()?;
         let lamp_data = LampData::new();
 
-        db_handler.add_device(&lamp_data)?;
+        create_tables(&connection)?;
+        add_device_to_db(&connection, &lamp_data)?;
 
-        Ok(())
-    }
+        let devices = get_devices_from_db(&connection)?;
 
-    #[test]
-    fn get_devices() -> Result<(), Box<dyn Error>> {
-        let db_handler = DBHandler::new()?;
-
-        db_handler.get_devices()?;
+        assert_eq!(lamp_data, *devices.first().unwrap());
 
         Ok(())
     }
