@@ -21,7 +21,6 @@ jobs:
            git clone https://github.com/protocolbuffers/protobuf.git
            cd protobuf
            git submodule update --init --recursive
-           ./configure
            make
            make check
            sudo make install
