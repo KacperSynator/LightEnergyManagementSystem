@@ -17,6 +17,6 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Build
-      run: cargo build --verbose --manifest-path ServerRpi
+      run: cargo build --verbose --manifest-path ServerRpi/Cargo.toml
     - name: Run tests
-      run: cargo test --verbose --manifest-path ServerRpi
+      run: cargo test --verbose --manifest-path ServerRpi/Cargo.toml
