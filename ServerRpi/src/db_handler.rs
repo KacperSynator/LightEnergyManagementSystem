@@ -9,7 +9,7 @@ include!(concat!(env!("OUT_DIR"), "/protos/mod.rs"));
 use lamp_controller::LampData;
 
 
-const DATABASE_PATH: &str = "/home/pi/lamps_data.db3";
+const DATABASE_PATH: &str = "./lamps_data.db3";
 
 
 #[derive(Debug)]
@@ -17,7 +17,7 @@ struct DBHandlerError(String);
 
 impl fmt::Display for DBHandlerError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "There is an error: {}", self.0)
+        write!(f, "There is an error: {}", self.0)q
     }
 }
 
@@ -116,6 +116,32 @@ fn get_devices_from_db(connection: &Connection) -> Result<Vec<LampData>, Box<dyn
         Ok( devices )
 }
 
+fn add_lamp_data_to_db(connection: &Connection, lamp_data: &LampData) -> Result<(), Box<dyn Error>> {
+    connection.execute(
+        "INSERT INTO LampData (
+            illuminance, 
+            voltage, 
+            current, 
+            power, 
+            energy, 
+            frequency, 
+            power_factor
+        )
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        (
+            &lamp_data.illuminance,
+            &lamp_data.voltage,
+            &lamp_data.current,
+            &lamp_data.power,
+            &lamp_data.energy,
+            &lamp_data.frequency,
+            &lamp_data.power_factor
+        )
+    )?;
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -157,6 +183,17 @@ mod test {
         let devices = get_devices_from_db(&connection)?;
 
         assert_eq!(lamp_data, *devices.first().unwrap());
+
+        Ok(())
+    }
+
+    #[test]
+    fn add_lamp_data() -> Result<(), Box<dyn Error>> {
+        let connection = connect_to_dummy_db()?;
+        let lamp_data = LampData::new();
+
+        create_tables(&connection)?;
+        add_lamp_data_to_db(&connection, &lamp_data)?;
 
         Ok(())
     }
