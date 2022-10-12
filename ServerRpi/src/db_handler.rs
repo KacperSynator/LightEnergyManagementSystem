@@ -17,7 +17,7 @@ struct DBHandlerError(String);
 
 impl fmt::Display for DBHandlerError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "There is an error: {}", self.0)q
+        write!(f, "There is an error: {}", self.0)
     }
 }
 
