@@ -1,4 +1,4 @@
-use rusqlite::{Connection, Result};
+use rusqlite::{Connection, Result, params};
 use protobuf::{EnumOrUnknown, Message};
 use log::{error, debug};
 use std::fmt;
@@ -99,21 +99,21 @@ fn add_device_to_db(connection: &Connection, lamp_data: &LampData) -> Result<(),
 
 fn get_devices_from_db(connection: &Connection) -> Result<Vec<LampData>, Box<dyn Error>> {
     let mut stmt = connection.prepare("SELECT * FROM devices")?;
-        let devices_iter = stmt.query_map([], |row| {
-            let mut lamp_data = LampData::new();
-            lamp_data.device_name = row.get(1)?;
-            lamp_data.device_mac = row.get(2)?;
+    let devices_iter = stmt.query_map([], |row| {
+        let mut lamp_data = LampData::new();
+        lamp_data.device_name = row.get(1)?;
+        lamp_data.device_mac = row.get(2)?;
 
-            Ok(lamp_data)
-        })?;
+        Ok(lamp_data)
+    })?;
 
-        let devices = devices_iter
-                .map(|device| { device.unwrap() })
-                .collect::<Vec<_>>();
+    let devices = devices_iter
+            .map(|device| { device.unwrap() })
+            .collect::<Vec<_>>();
 
-        debug!("Devices received from db\n\t{:?}", devices);
+    debug!("Devices received from db\n\t{:?}", devices);
 
-        Ok( devices )
+    Ok( devices )
 }
 
 fn add_lamp_data_to_db(connection: &Connection, lamp_data: &LampData) -> Result<(), Box<dyn Error>> {
@@ -140,6 +140,27 @@ fn add_lamp_data_to_db(connection: &Connection, lamp_data: &LampData) -> Result<
     )?;
 
     Ok(())
+}
+
+fn get_device_id(connection: &Connection, lamp_data: &LampData) -> Result<Option<usize>, Box<dyn Error>> {
+    let mut stmt = connection.prepare("SELECT id_device
+                                                    FROM devices
+                                                    WHERE mac_address = ?1"
+                                                 )?;
+    let mut rows = stmt.query_map([&lamp_data.device_mac], |row| row.get(0))?;
+
+    let mut devices_id = Vec::new();
+    for row in rows {
+        devices_id.push(row?);
+    }
+    
+    debug!("Device id vec: {:?}", devices_id);
+
+    if let Some(device_id) = devices_id.first() {
+        return Ok( Some(*device_id) );
+    };
+
+    Ok(None)
 }
 
 #[cfg(test)]
@@ -194,6 +215,19 @@ mod test {
 
         create_tables(&connection)?;
         add_lamp_data_to_db(&connection, &lamp_data)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn get_device_id_success() -> Result<(), Box<dyn Error>> {
+        let connection = connect_to_dummy_db()?;
+        let lamp_data = LampData::new();
+
+        create_tables(&connection)?;
+        add_device_to_db(&connection, &lamp_data)?;
+
+        get_device_id(&connection, &lamp_data).expect("device not found");
 
         Ok(())
     }
