@@ -73,6 +73,7 @@ fn create_lamp_data_table(connection: &Connection) -> Result<(), Box<dyn Error>>
         "CREATE TABLE IF NOT EXISTS LampData (
             id_lamp_data INTEGER PRIMARY KEY,
             id_device INTEGER,
+            timestamp INTEGER,
             illuminance REAL,
             voltage REAL,
             current REAL,
@@ -117,8 +118,17 @@ fn get_devices_from_db(connection: &Connection) -> Result<Vec<LampData>, Box<dyn
 }
 
 fn add_lamp_data_to_db(connection: &Connection, lamp_data: &LampData) -> Result<(), Box<dyn Error>> {
+    let device_id = get_device_id(connection, lamp_data)?;
+
+    if device_id.is_none() {
+        error!("Device not found in db! mac: {}, name: {}", &lamp_data.device_mac, &lamp_data.device_name);
+        return Err(Box::new(DBHandlerError("Device not found in db".into())));
+    }
+
     connection.execute(
         "INSERT INTO LampData (
+            id_device,
+            timestamp,
             illuminance, 
             voltage, 
             current, 
@@ -127,8 +137,10 @@ fn add_lamp_data_to_db(connection: &Connection, lamp_data: &LampData) -> Result<
             frequency, 
             power_factor
         )
-        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
         (
+            &device_id.unwrap(),
+            &lamp_data.timestamp,
             &lamp_data.illuminance,
             &lamp_data.voltage,
             &lamp_data.current,
@@ -214,6 +226,7 @@ mod test {
         let lamp_data = LampData::new();
 
         create_tables(&connection)?;
+        add_device_to_db(&connection, &lamp_data)?;
         add_lamp_data_to_db(&connection, &lamp_data)?;
 
         Ok(())
@@ -227,7 +240,7 @@ mod test {
         create_tables(&connection)?;
         add_device_to_db(&connection, &lamp_data)?;
 
-        get_device_id(&connection, &lamp_data).expect("device not found");
+        get_device_id(&connection, &lamp_data)?.expect("device not found");
 
         Ok(())
     }
