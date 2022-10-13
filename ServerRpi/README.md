@@ -17,3 +17,17 @@ curl https://sh.rustup.rs -sSf | sh
 ```bash
 RUST_LOG=info cargo run
 ```
+
+## Roadmap
+- [ ] Implement database
+    - [x] Implement CREATE TABLES for devices and lamp_data
+    - [x] Implement SELECT/INSERT requsets fpr devices and lamp_data
+    - [ ] Implement SELECT requests for lamp_data depending on device_name, timestamp
+    - [ ] Unit tests for all free functions
+- [ ] Implement MQTT
+    - [ ] Mosquitto broker
+    - [ ] find and add MQTT library
+    - [ ] Handler for some MQTT library 
+    - [ ] Unit tests for all free functions
+- [ ] Integrate database with MQTT
+- [ ] update README
