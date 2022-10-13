@@ -1,5 +1,4 @@
 use rusqlite::{Connection, Result, ErrorCode};
-use protobuf::{EnumOrUnknown, Message};
 use log::{error, debug};
 use std::fmt;
 use std::error::Error;
@@ -168,7 +167,7 @@ fn get_device_id(connection: &Connection, lamp_data: &LampData) -> Result<Option
                                                     FROM devices
                                                     WHERE mac_address = ?1"
                                                  )?;
-    let mut rows = stmt.query_map([&lamp_data.device_mac], |row| row.get(0))?;
+    let rows = stmt.query_map([&lamp_data.device_mac], |row| row.get(0))?;
 
     let mut devices_id = Vec::new();
     for row in rows {
@@ -237,6 +236,8 @@ mod test {
         create_tables(&connection)?;
         add_device_to_db(&connection, &lamp_data)?;
         add_device_to_db(&connection, &lamp_data)?;
+
+        assert_eq!(get_devices_from_db(&connection)?.len(), 1);
 
         Ok(())
     }
