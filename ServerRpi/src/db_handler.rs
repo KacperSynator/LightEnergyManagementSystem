@@ -1,4 +1,4 @@
-use rusqlite::{Connection, Result, params};
+use rusqlite::{Connection, Result, ErrorCode};
 use protobuf::{EnumOrUnknown, Message};
 use log::{error, debug};
 use std::fmt;
@@ -37,8 +37,9 @@ impl DBHandler {
         Ok(db_handler)
     }
 
-    pub fn add_device(&self, lamp_data: &LampData) -> Result<(), Box<dyn Error>> {
-        add_device_to_db(&self.connection, &lamp_data)?;
+    pub fn insert_lamp_data(&self, lamp_data: &LampData) -> Result<(), Box<dyn Error>> {
+        add_device_to_db(&self.connection, lamp_data)?;
+        add_lamp_data_to_db(&self.connection, lamp_data)?;
 
         Ok(())
     }
@@ -60,7 +61,7 @@ fn create_devices_table(connection: &Connection) -> Result<(), Box<dyn Error>> {
         "CREATE TABLE IF NOT EXISTS devices (
             id_device  INTEGER PRIMARY KEY,
             name  TEXT NOT NULL,
-            mac_address  TEXT NOT NULL
+            mac_address  TEXT NOT NULL UNIQUE
         )",
         (), 
     )?;
@@ -90,10 +91,18 @@ fn create_lamp_data_table(connection: &Connection) -> Result<(), Box<dyn Error>>
 }
 
 fn add_device_to_db(connection: &Connection, lamp_data: &LampData) -> Result<(), Box<dyn Error>> {
-    connection.execute(
+    let res = connection.execute(
         "INSERT INTO devices (name, mac_address) VALUES (?1, ?2)",
         (&lamp_data.device_name, &lamp_data.device_mac)
-    )?;
+    );
+    
+    if let Err(e) = res {
+        if e.sqlite_error_code().unwrap() == ErrorCode::ConstraintViolation {
+            return Ok(());
+        }
+
+        return Err(Box::new(e));
+    }
 
     Ok(())
 }
@@ -216,6 +225,18 @@ mod test {
         let devices = get_devices_from_db(&connection)?;
 
         assert_eq!(lamp_data, *devices.first().unwrap());
+
+        Ok(())
+    }
+
+    #[test]
+    fn add_same_device_twice() -> Result<(), Box<dyn Error>> {
+        let connection = connect_to_dummy_db()?;
+        let lamp_data = LampData::new();
+
+        create_tables(&connection)?;
+        add_device_to_db(&connection, &lamp_data)?;
+        add_device_to_db(&connection, &lamp_data)?;
 
         Ok(())
     }
