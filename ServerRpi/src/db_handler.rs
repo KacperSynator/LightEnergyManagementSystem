@@ -31,7 +31,6 @@ impl DBHandler {
         let connection = Connection::open(DATABASE_PATH)?;
         let db_handler = Self { connection };
         db_handler.create_tables()?;
-        let a = DataPacket::new();
 
         Ok(db_handler)
     }
@@ -125,7 +124,36 @@ fn get_all_devices_from_db(connection: &Connection) -> Result<Vec<Device>, Box<d
     Ok( devices )
 }
 
+fn get_device_lamp_data_before(connection: &Connection, device: &Device, timestamp: usize) -> Result<Vec<LampData>, Box<dyn Error>> {
+    let device_id = get_device_id(connection, &device)?;
 
+    if device_id.is_none() {
+        error!("Device not found in db! mac: {}, name: {}", &device.mac, &device.name);
+        return Err(Box::new(DBHandlerError("Device not found in db".into())));
+    }
+
+    let mut stmt = connection.prepare("SELECT * FROM LampData WHERE id_device = ?1 AND timestamp <= ?2")?;
+    let iter_lamp_data = stmt.query_map((&device_id, &timestamp), |row| {
+        let mut lamp_data = LampData::new();
+        lamp_data.timestamp = row.get(2)?;
+        lamp_data.illuminance = row.get(3)?;
+        lamp_data.voltage = row.get(4)?;
+        lamp_data.power = row.get(5)?;
+        lamp_data.energy = row.get(6)?;
+        lamp_data.frequency = row.get(7)?;
+        lamp_data.power_factor = row.get(8)?;
+        
+        Ok(lamp_data)
+    })?;
+
+    let data = iter_lamp_data
+            .map(|lamp_data| { lamp_data.unwrap() })
+            .collect::<Vec<_>>();
+
+    debug!("Lamp data for device {:?} before {} received from db\n\t{:?}", device, timestamp, data);
+
+    Ok( data )
+}
 
 fn add_lamp_data_to_db(connection: &Connection, lamp_data: &LampData, device: &Device) -> Result<(), Box<dyn Error>> {
     let device_id = get_device_id(connection, &device)?;
@@ -187,6 +215,8 @@ fn get_device_id(connection: &Connection, device: &Device) -> Result<Option<usiz
 
 #[cfg(test)]
 mod test {
+    use std::borrow::BorrowMut;
+
     use super::*;
 
     fn connect_to_dummy_db() -> Result<Connection, Box<dyn Error>> {
@@ -265,6 +295,28 @@ mod test {
         add_device_to_db(&connection, &data_packet.device)?;
 
         get_device_id(&connection, &data_packet.device)?.expect("device not found");
+
+        Ok(())
+    }
+
+    #[test]
+    fn get_device_lamp_data_before_success() -> Result<(), Box<dyn Error>> {
+        let connection = connect_to_dummy_db()?;
+        let device = Device::new();
+        let timestamp: u32 = 1000;
+        let lamp_data_before = LampData::new();
+        let mut lamp_data_after = LampData::new();
+        lamp_data_after.timestamp = timestamp + 1;
+
+        create_tables(&connection)?;
+        add_device_to_db(&connection, &device)?;
+        add_lamp_data_to_db(&connection, &lamp_data_before, &device)?;
+        add_lamp_data_to_db(&connection, &lamp_data_after, &device)?;
+
+        let result = get_device_lamp_data_before(&connection,  &device, timestamp as usize)?;
+        
+        assert_eq!(result.len(), 1);
+        assert_eq!(result.first().unwrap(), &lamp_data_before);
 
         Ok(())
     }
