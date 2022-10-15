@@ -5,7 +5,7 @@
 
 #### 1. Install dependencies
 ```bash
-sudo apt-get install build-essential curl git sqlite3 protobuf-compiler
+sudo apt-get install build-essential curl git sqlite3 protobuf-compiler cmake libssl-dev
 ```
 
 #### 2. Install rust
