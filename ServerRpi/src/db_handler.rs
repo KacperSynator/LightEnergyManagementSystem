@@ -5,8 +5,7 @@ use std::error::Error;
 
 include!(concat!(env!("OUT_DIR"), "/protos/mod.rs"));
 
-use lamp_controller::LampData;
-
+use light_energy_menagment_system::{DataPacket, Device, LampData};
 
 const DATABASE_PATH: &str = "./lamps_data.db3";
 
@@ -32,19 +31,20 @@ impl DBHandler {
         let connection = Connection::open(DATABASE_PATH)?;
         let db_handler = Self { connection };
         db_handler.create_tables()?;
+        let a = DataPacket::new();
 
         Ok(db_handler)
     }
 
-    pub fn insert_lamp_data(&self, lamp_data: &LampData) -> Result<(), Box<dyn Error>> {
-        add_device_to_db(&self.connection, lamp_data)?;
-        add_lamp_data_to_db(&self.connection, lamp_data)?;
+    pub fn insert_data_packet(&self, data_packet: &DataPacket) -> Result<(), Box<dyn Error>> {
+        add_device_to_db(&self.connection, &data_packet.device)?;
+        add_lamp_data_to_db(&self.connection, &data_packet.lamp_data, &data_packet.device)?;
 
         Ok(())
     }
 
-    pub fn get_devices(&self) -> Result<Vec<LampData>, Box<dyn Error>> {
-        Ok(get_devices_from_db(&self.connection)?)
+    pub fn get_all_devices(&self) -> Result<Vec<Device>, Box<dyn Error>> {
+        get_all_devices_from_db(&self.connection)
     }
 
     fn create_tables(&self) -> Result<(), Box<dyn Error>> {
@@ -89,10 +89,10 @@ fn create_lamp_data_table(connection: &Connection) -> Result<(), Box<dyn Error>>
     Ok(())
 }
 
-fn add_device_to_db(connection: &Connection, lamp_data: &LampData) -> Result<(), Box<dyn Error>> {
+fn add_device_to_db(connection: &Connection, device: &Device) -> Result<(), Box<dyn Error>> {
     let res = connection.execute(
         "INSERT INTO devices (name, mac_address) VALUES (?1, ?2)",
-        (&lamp_data.device_name, &lamp_data.device_mac)
+        (&device.name, &device.mac)
     );
     
     if let Err(e) = res {
@@ -106,14 +106,14 @@ fn add_device_to_db(connection: &Connection, lamp_data: &LampData) -> Result<(),
     Ok(())
 }
 
-fn get_devices_from_db(connection: &Connection) -> Result<Vec<LampData>, Box<dyn Error>> {
-    let mut stmt = connection.prepare("SELECT * FROM devices")?;
+fn get_all_devices_from_db(connection: &Connection) -> Result<Vec<Device>, Box<dyn Error>> {
+    let mut stmt = connection.prepare("SELECT name, mac_address FROM devices")?;
     let devices_iter = stmt.query_map([], |row| {
-        let mut lamp_data = LampData::new();
-        lamp_data.device_name = row.get(1)?;
-        lamp_data.device_mac = row.get(2)?;
+        let mut device = Device::new();
+        device.name = row.get(0)?;
+        device.mac = row.get(1)?;
 
-        Ok(lamp_data)
+        Ok(device)
     })?;
 
     let devices = devices_iter
@@ -125,11 +125,13 @@ fn get_devices_from_db(connection: &Connection) -> Result<Vec<LampData>, Box<dyn
     Ok( devices )
 }
 
-fn add_lamp_data_to_db(connection: &Connection, lamp_data: &LampData) -> Result<(), Box<dyn Error>> {
-    let device_id = get_device_id(connection, lamp_data)?;
+
+
+fn add_lamp_data_to_db(connection: &Connection, lamp_data: &LampData, device: &Device) -> Result<(), Box<dyn Error>> {
+    let device_id = get_device_id(connection, &device)?;
 
     if device_id.is_none() {
-        error!("Device not found in db! mac: {}, name: {}", &lamp_data.device_mac, &lamp_data.device_name);
+        error!("Device not found in db! mac: {}, name: {}", &device.mac, &device.name);
         return Err(Box::new(DBHandlerError("Device not found in db".into())));
     }
 
@@ -162,12 +164,12 @@ fn add_lamp_data_to_db(connection: &Connection, lamp_data: &LampData) -> Result<
     Ok(())
 }
 
-fn get_device_id(connection: &Connection, lamp_data: &LampData) -> Result<Option<usize>, Box<dyn Error>> {
+fn get_device_id(connection: &Connection, device: &Device) -> Result<Option<usize>, Box<dyn Error>> {
     let mut stmt = connection.prepare("SELECT id_device
                                                     FROM devices
                                                     WHERE mac_address = ?1"
                                                  )?;
-    let rows = stmt.query_map([&lamp_data.device_mac], |row| row.get(0))?;
+    let rows = stmt.query_map([&device.mac], |row| row.get(0))?;
 
     let mut devices_id = Vec::new();
     for row in rows {
@@ -216,14 +218,14 @@ mod test {
     #[test]
     fn add_and_get_device() -> Result<(), Box<dyn Error>> {
         let connection = connect_to_dummy_db()?;
-        let lamp_data = LampData::new();
+        let device = Device::new();
 
         create_tables(&connection)?;
-        add_device_to_db(&connection, &lamp_data)?;
+        add_device_to_db(&connection, &Device::new())?;
 
-        let devices = get_devices_from_db(&connection)?;
+        let devices = get_all_devices_from_db(&connection)?;
 
-        assert_eq!(lamp_data, *devices.first().unwrap());
+        assert_eq!(device, *devices.first().unwrap());
 
         Ok(())
     }
@@ -231,13 +233,13 @@ mod test {
     #[test]
     fn add_same_device_twice() -> Result<(), Box<dyn Error>> {
         let connection = connect_to_dummy_db()?;
-        let lamp_data = LampData::new();
+        let device = Device::new();
 
         create_tables(&connection)?;
-        add_device_to_db(&connection, &lamp_data)?;
-        add_device_to_db(&connection, &lamp_data)?;
+        add_device_to_db(&connection, &device)?;
+        add_device_to_db(&connection, &device)?;
 
-        assert_eq!(get_devices_from_db(&connection)?.len(), 1);
+        assert_eq!(get_all_devices_from_db(&connection)?.len(), 1);
 
         Ok(())
     }
@@ -245,11 +247,11 @@ mod test {
     #[test]
     fn add_lamp_data() -> Result<(), Box<dyn Error>> {
         let connection = connect_to_dummy_db()?;
-        let lamp_data = LampData::new();
+        let data_packet = DataPacket::new();
 
         create_tables(&connection)?;
-        add_device_to_db(&connection, &lamp_data)?;
-        add_lamp_data_to_db(&connection, &lamp_data)?;
+        add_device_to_db(&connection, &data_packet.device)?;
+        add_lamp_data_to_db(&connection, &data_packet.lamp_data, &data_packet.device)?;
 
         Ok(())
     }
@@ -257,12 +259,12 @@ mod test {
     #[test]
     fn get_device_id_success() -> Result<(), Box<dyn Error>> {
         let connection = connect_to_dummy_db()?;
-        let lamp_data = LampData::new();
+        let data_packet = DataPacket::new();
 
         create_tables(&connection)?;
-        add_device_to_db(&connection, &lamp_data)?;
+        add_device_to_db(&connection, &data_packet.device)?;
 
-        get_device_id(&connection, &lamp_data)?.expect("device not found");
+        get_device_id(&connection, &data_packet.device)?.expect("device not found");
 
         Ok(())
     }

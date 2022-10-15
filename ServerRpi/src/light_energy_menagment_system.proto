@@ -1,18 +1,25 @@
 syntax = "proto3";
 
-package lamp_controller;
+package light_energy_menagment_system;
+
+message Device {
+    string name = 1;
+    string mac = 2;
+}
 
 message LampData {
-    string device_name = 1;
-    string device_mac = 2;
     uint32 timestamp = 3;
-
     float illuminance = 4;
-    
+
     float voltage = 5;
     float current = 6;
     float power = 7;
     float energy = 8;
     float frequency = 9;
     float power_factor = 10;
+}
+
+message DataPacket {
+    Device device = 11;
+    LampData lamp_data = 12;
 }

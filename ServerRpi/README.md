@@ -21,7 +21,7 @@ RUST_LOG=info cargo run
 ## Roadmap
 - [ ] Implement database
     - [x] Implement CREATE TABLES for devices and lamp_data
-    - [x] Implement SELECT/INSERT requsets fpr devices and lamp_data
+    - [x] Implement SELECT/INSERT requests for devices and lamp_data
     - [ ] Implement SELECT requests for lamp_data depending on device_name, timestamp
     - [ ] Unit tests for all free functions
 - [ ] Implement MQTT
