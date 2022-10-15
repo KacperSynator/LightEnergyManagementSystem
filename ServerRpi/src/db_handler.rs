@@ -124,7 +124,7 @@ fn get_all_devices_from_db(connection: &Connection) -> Result<Vec<Device>, Box<d
     Ok( devices )
 }
 
-fn get_device_lamp_data_before(connection: &Connection, device: &Device, timestamp: usize) -> Result<Vec<LampData>, Box<dyn Error>> {
+fn get_device_lamp_data_before(connection: &Connection, device: &Device, timestamp: u32) -> Result<Vec<LampData>, Box<dyn Error>> {
     let device_id = get_device_id(connection, &device)?;
 
     if device_id.is_none() {
@@ -155,11 +155,14 @@ fn get_device_lamp_data_before(connection: &Connection, device: &Device, timesta
     Ok( data )
 }
 
-fn get_device_lamp_data_after(connection: &Connection, device: &Device, timestamp: usize) -> Result<Vec<LampData>, Box<dyn Error>> {
+fn get_device_lamp_data_after(connection: &Connection, device: &Device, timestamp: u32) -> Result<Vec<LampData>, Box<dyn Error>> {
     let devices_before = get_device_lamp_data_before(connection, device, timestamp)?;
-    let all_devices = get_device_lamp_data_before(connection, device, usize::MAX)?;
+    let all_devices = get_device_lamp_data_before(connection, device, u32::MAX)?;
+    let devices_after = all_devices[devices_before.len()..].to_vec();
 
-    Ok(all_devices[devices_before.len()-1..].to_vec())
+    debug!("Devices after: {:?}", devices_after);
+
+    Ok(devices_after)
 }
 
 fn add_lamp_data_to_db(connection: &Connection, lamp_data: &LampData, device: &Device) -> Result<(), Box<dyn Error>> {
@@ -199,7 +202,7 @@ fn add_lamp_data_to_db(connection: &Connection, lamp_data: &LampData, device: &D
     Ok(())
 }
 
-fn get_device_id(connection: &Connection, device: &Device) -> Result<Option<usize>, Box<dyn Error>> {
+fn get_device_id(connection: &Connection, device: &Device) -> Result<Option<u32>, Box<dyn Error>> {
     let mut stmt = connection.prepare("SELECT id_device
                                                     FROM devices
                                                     WHERE mac_address = ?1"
@@ -304,7 +307,7 @@ mod test {
         Ok(())
     }
 
-    fn setup_device_lamp_data_before_and_after() -> Result<(Connection, Device, LampData, LampData, usize), Box<dyn Error>> {
+    fn setup_device_lamp_data_before_and_after() -> Result<(Connection, Device, LampData, LampData, u32), Box<dyn Error>> {
         let connection = connect_to_dummy_db()?;
         let device = Device::new();
         let timestamp: u32 = 1000;
@@ -317,7 +320,7 @@ mod test {
         add_lamp_data_to_db(&connection, &lamp_data_before, &device)?;
         add_lamp_data_to_db(&connection, &lamp_data_after, &device)?;
 
-        Ok ((connection, device, lamp_data_before, lamp_data_after, timestamp as usize))
+        Ok ((connection, device, lamp_data_before, lamp_data_after, timestamp))
     }
 
     #[test]
