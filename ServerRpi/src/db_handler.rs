@@ -304,8 +304,7 @@ mod test {
         Ok(())
     }
 
-    #[test]
-    fn get_device_lamp_data_before_success() -> Result<(), Box<dyn Error>> {
+    fn setup_device_lamp_data_before_and_after() -> Result<(Connection, Device, LampData, LampData, usize), Box<dyn Error>> {
         let connection = connect_to_dummy_db()?;
         let device = Device::new();
         let timestamp: u32 = 1000;
@@ -318,7 +317,14 @@ mod test {
         add_lamp_data_to_db(&connection, &lamp_data_before, &device)?;
         add_lamp_data_to_db(&connection, &lamp_data_after, &device)?;
 
-        let result = get_device_lamp_data_before(&connection,  &device, timestamp as usize)?;
+        Ok ((connection, device, lamp_data_before, lamp_data_after, timestamp as usize))
+    }
+
+    #[test]
+    fn get_device_lamp_data_before_success() -> Result<(), Box<dyn Error>> {
+        let (connection, device, lamp_data_before, _, timestamp)  = setup_device_lamp_data_before_and_after()?;
+
+        let result = get_device_lamp_data_before(&connection,  &device, timestamp)?;
         
         assert_eq!(result.len(), 1);
         assert_eq!(result.first().unwrap(), &lamp_data_before);
@@ -328,19 +334,9 @@ mod test {
 
     #[test]
     fn get_device_lamp_data_after_success() -> Result<(), Box<dyn Error>> {
-        let connection = connect_to_dummy_db()?;
-        let device = Device::new();
-        let timestamp: u32 = 1000;
-        let mut lamp_data_before = LampData::new();
-        let lamp_data_after = LampData::new();
-        lamp_data_before.timestamp = timestamp - 1;
+        let (connection, device, _, lamp_data_after, timestamp)  = setup_device_lamp_data_before_and_after()?;
 
-        create_tables(&connection)?;
-        add_device_to_db(&connection, &device)?;
-        add_lamp_data_to_db(&connection, &lamp_data_before, &device)?;
-        add_lamp_data_to_db(&connection, &lamp_data_after, &device)?;
-
-        let result = get_device_lamp_data_after(&connection,  &device, timestamp as usize)?;
+        let result = get_device_lamp_data_after(&connection,  &device, timestamp)?;
         
         assert_eq!(result.len(), 1);
         assert_eq!(result.first().unwrap(), &lamp_data_after);
