@@ -60,7 +60,15 @@ impl MqttConnection {
         Ok(())
     }
 
+    async fn disconnect(&self) -> Result<(), Box<dyn Error>> {
+        self.client.disconnect(None).await?;
+
+        Ok(())
+    }
+
     async fn check_connection(&self) -> Result<(), Box<dyn Error>> {
+        debug!("Connected: {}", self.client.is_connected());
+
         if !self.client.is_connected() {
             self.connect().await?;
         }
@@ -96,19 +104,13 @@ mod test {
     use super::*;
 
     #[tokio::test]
-    async fn publish_test() -> Result<(), Box<dyn Error>> {
+    async fn publish_and_subscribe_success() -> Result<(), Box<dyn Error>> {
         let mqtt_conn = MqttConnection::new()?;
         mqtt_conn
             .publish("test".to_string(), "hello_from_test".to_string())
             .await?;
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn subscribe_test() -> Result<(), Box<dyn Error>> {
-        let mqtt_conn = MqttConnection::new()?;
-        mqtt_conn.subscribe(|_, _| {}).await?;
-
+        mqtt_conn.subscribe(|_, _| {return;}).await?;
+        mqtt_conn.disconnect().await?;
         Ok(())
     }
 }

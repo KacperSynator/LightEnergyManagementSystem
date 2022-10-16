@@ -17,7 +17,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .publish("test".to_string(), "hello from ServerRpi".to_string())
         .await?;
     mqtt_connection
-        .subscribe(|client, msg| {
+        .subscribe(|_client, msg| {
             let msg = msg.unwrap();
             println!(
                 "Message arrived with topic: {:?}\n\tPayload: {:?}",
@@ -32,6 +32,4 @@ async fn main() -> Result<(), Box<dyn Error>> {
         println!("loop");
         sleep(Duration::from_millis(1000));
     }
-
-    Ok(())
 }
