@@ -1,14 +1,13 @@
-use rusqlite::{Connection, Result, ErrorCode};
-use log::{error, debug};
-use std::fmt;
+use log::{debug, error};
+use rusqlite::{Connection, ErrorCode, Result};
 use std::error::Error;
+use std::fmt;
 
 include!(concat!(env!("OUT_DIR"), "/protos/mod.rs"));
 
 use light_energy_menagment_system::{DataPacket, Device, LampData};
 
 const DATABASE_PATH: &str = "./lamps_data.db3";
-
 
 #[derive(Debug)]
 struct DBHandlerError(String);
@@ -20,7 +19,6 @@ impl fmt::Display for DBHandlerError {
 }
 
 impl Error for DBHandlerError {}
-
 
 pub struct DBHandler {
     connection: Connection,
@@ -37,7 +35,11 @@ impl DBHandler {
 
     pub fn insert_data_packet(&self, data_packet: &DataPacket) -> Result<(), Box<dyn Error>> {
         add_device_to_db(&self.connection, &data_packet.device)?;
-        add_lamp_data_to_db(&self.connection, &data_packet.lamp_data, &data_packet.device)?;
+        add_lamp_data_to_db(
+            &self.connection,
+            &data_packet.lamp_data,
+            &data_packet.device,
+        )?;
 
         Ok(())
     }
@@ -61,7 +63,7 @@ fn create_devices_table(connection: &Connection) -> Result<(), Box<dyn Error>> {
             name  TEXT NOT NULL,
             mac_address  TEXT NOT NULL UNIQUE
         )",
-        (), 
+        (),
     )?;
 
     Ok(())
@@ -82,18 +84,18 @@ fn create_lamp_data_table(connection: &Connection) -> Result<(), Box<dyn Error>>
             power_factor REAL,
             FOREIGN KEY(id_device) REFERENCES devices(id_device)
         )",
-        (), 
+        (),
     )?;
-    
+
     Ok(())
 }
 
 fn add_device_to_db(connection: &Connection, device: &Device) -> Result<(), Box<dyn Error>> {
     let res = connection.execute(
         "INSERT INTO devices (name, mac_address) VALUES (?1, ?2)",
-        (&device.name, &device.mac)
+        (&device.name, &device.mac),
     );
-    
+
     if let Err(e) = res {
         if e.sqlite_error_code().unwrap() == ErrorCode::ConstraintViolation {
             return Ok(());
@@ -116,23 +118,31 @@ fn get_all_devices_from_db(connection: &Connection) -> Result<Vec<Device>, Box<d
     })?;
 
     let devices = devices_iter
-            .map(|device| { device.unwrap() })
-            .collect::<Vec<_>>();
+        .map(|device| device.unwrap())
+        .collect::<Vec<_>>();
 
     debug!("Devices received from db\n\t{:?}", devices);
 
-    Ok( devices )
+    Ok(devices)
 }
 
-fn get_device_lamp_data_before(connection: &Connection, device: &Device, timestamp: u32) -> Result<Vec<LampData>, Box<dyn Error>> {
+fn get_device_lamp_data_before(
+    connection: &Connection,
+    device: &Device,
+    timestamp: u32,
+) -> Result<Vec<LampData>, Box<dyn Error>> {
     let device_id = get_device_id(connection, &device)?;
 
     if device_id.is_none() {
-        error!("Device not found in db! mac: {}, name: {}", &device.mac, &device.name);
+        error!(
+            "Device not found in db! mac: {}, name: {}",
+            &device.mac, &device.name
+        );
         return Err(Box::new(DBHandlerError("Device not found in db".into())));
     }
 
-    let mut stmt = connection.prepare("SELECT * FROM LampData WHERE id_device = ?1 AND timestamp <= ?2")?;
+    let mut stmt =
+        connection.prepare("SELECT * FROM LampData WHERE id_device = ?1 AND timestamp <= ?2")?;
     let iter_lamp_data = stmt.query_map((&device_id, &timestamp), |row| {
         let mut lamp_data = LampData::new();
         lamp_data.timestamp = row.get(2)?;
@@ -142,20 +152,27 @@ fn get_device_lamp_data_before(connection: &Connection, device: &Device, timesta
         lamp_data.energy = row.get(6)?;
         lamp_data.frequency = row.get(7)?;
         lamp_data.power_factor = row.get(8)?;
-        
+
         Ok(lamp_data)
     })?;
 
     let data = iter_lamp_data
-            .map(|lamp_data| { lamp_data.unwrap() })
-            .collect::<Vec<_>>();
+        .map(|lamp_data| lamp_data.unwrap())
+        .collect::<Vec<_>>();
 
-    debug!("Lamp data for device {:?} before {} received from db\n\t{:?}", device, timestamp, data);
+    debug!(
+        "Lamp data for device {:?} before {} received from db\n\t{:?}",
+        device, timestamp, data
+    );
 
-    Ok( data )
+    Ok(data)
 }
 
-fn get_device_lamp_data_after(connection: &Connection, device: &Device, timestamp: u32) -> Result<Vec<LampData>, Box<dyn Error>> {
+fn get_device_lamp_data_after(
+    connection: &Connection,
+    device: &Device,
+    timestamp: u32,
+) -> Result<Vec<LampData>, Box<dyn Error>> {
     let devices_before = get_device_lamp_data_before(connection, device, timestamp)?;
     let all_devices = get_device_lamp_data_before(connection, device, u32::MAX)?;
     let devices_after = all_devices[devices_before.len()..].to_vec();
@@ -165,11 +182,18 @@ fn get_device_lamp_data_after(connection: &Connection, device: &Device, timestam
     Ok(devices_after)
 }
 
-fn add_lamp_data_to_db(connection: &Connection, lamp_data: &LampData, device: &Device) -> Result<(), Box<dyn Error>> {
+fn add_lamp_data_to_db(
+    connection: &Connection,
+    lamp_data: &LampData,
+    device: &Device,
+) -> Result<(), Box<dyn Error>> {
     let device_id = get_device_id(connection, &device)?;
 
     if device_id.is_none() {
-        error!("Device not found in db! mac: {}, name: {}", &device.mac, &device.name);
+        error!(
+            "Device not found in db! mac: {}, name: {}",
+            &device.mac, &device.name
+        );
         return Err(Box::new(DBHandlerError("Device not found in db".into())));
     }
 
@@ -195,29 +219,30 @@ fn add_lamp_data_to_db(connection: &Connection, lamp_data: &LampData, device: &D
             &lamp_data.power,
             &lamp_data.energy,
             &lamp_data.frequency,
-            &lamp_data.power_factor
-        )
+            &lamp_data.power_factor,
+        ),
     )?;
 
     Ok(())
 }
 
 fn get_device_id(connection: &Connection, device: &Device) -> Result<Option<u32>, Box<dyn Error>> {
-    let mut stmt = connection.prepare("SELECT id_device
+    let mut stmt = connection.prepare(
+        "SELECT id_device
                                                     FROM devices
-                                                    WHERE mac_address = ?1"
-                                                 )?;
+                                                    WHERE mac_address = ?1",
+    )?;
     let rows = stmt.query_map([&device.mac], |row| row.get(0))?;
 
     let mut devices_id = Vec::new();
     for row in rows {
         devices_id.push(row?);
     }
-    
+
     debug!("Device id vec: {:?}", devices_id);
 
     if let Some(device_id) = devices_id.first() {
-        return Ok( Some(*device_id) );
+        return Ok(Some(*device_id));
     };
 
     Ok(None)
@@ -307,7 +332,8 @@ mod test {
         Ok(())
     }
 
-    fn setup_device_lamp_data_before_and_after() -> Result<(Connection, Device, LampData, LampData, u32), Box<dyn Error>> {
+    fn setup_device_lamp_data_before_and_after(
+    ) -> Result<(Connection, Device, LampData, LampData, u32), Box<dyn Error>> {
         let connection = connect_to_dummy_db()?;
         let device = Device::new();
         let timestamp: u32 = 1000;
@@ -320,15 +346,22 @@ mod test {
         add_lamp_data_to_db(&connection, &lamp_data_before, &device)?;
         add_lamp_data_to_db(&connection, &lamp_data_after, &device)?;
 
-        Ok ((connection, device, lamp_data_before, lamp_data_after, timestamp))
+        Ok((
+            connection,
+            device,
+            lamp_data_before,
+            lamp_data_after,
+            timestamp,
+        ))
     }
 
     #[test]
     fn get_device_lamp_data_before_success() -> Result<(), Box<dyn Error>> {
-        let (connection, device, lamp_data_before, _, timestamp)  = setup_device_lamp_data_before_and_after()?;
+        let (connection, device, lamp_data_before, _, timestamp) =
+            setup_device_lamp_data_before_and_after()?;
 
-        let result = get_device_lamp_data_before(&connection,  &device, timestamp)?;
-        
+        let result = get_device_lamp_data_before(&connection, &device, timestamp)?;
+
         assert_eq!(result.len(), 1);
         assert_eq!(result.first().unwrap(), &lamp_data_before);
 
@@ -337,10 +370,11 @@ mod test {
 
     #[test]
     fn get_device_lamp_data_after_success() -> Result<(), Box<dyn Error>> {
-        let (connection, device, _, lamp_data_after, timestamp)  = setup_device_lamp_data_before_and_after()?;
+        let (connection, device, _, lamp_data_after, timestamp) =
+            setup_device_lamp_data_before_and_after()?;
 
-        let result = get_device_lamp_data_after(&connection,  &device, timestamp)?;
-        
+        let result = get_device_lamp_data_after(&connection, &device, timestamp)?;
+
         assert_eq!(result.len(), 1);
         assert_eq!(result.first().unwrap(), &lamp_data_after);
 
