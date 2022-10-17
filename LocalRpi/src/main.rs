@@ -7,7 +7,7 @@ use protobuf::{EnumOrUnknown, Message};
 
 include!(concat!(env!("OUT_DIR"), "/protos/mod.rs"));
 
-use lamp_controller::LampData;
+use light_energy_menagment_system::{LampData, DataPacket};
 
 
 #[tokio::main]
@@ -17,10 +17,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let ble_conn = BLEConnection::new().await?;
 
     ble_conn.write_to_device(&String::from("EC:62:60:93:A4:B2"), &String::from("hello from LocalRPi")).await?;
-    let lamps_data = ble_conn.read_devices_data().await?;
-    info!("Received data: {:?}", lamps_data);
-    for lamp_data in lamps_data.iter() {
-        info!("Protobuf data: {:?}", LampData::parse_from_bytes(lamp_data).unwrap());
+    let data_packets = ble_conn.read_devices_data().await?;
+    info!("Received data: {:?}", data_packets);
+    for data_packet in data_packets.iter() {
+        info!("Protobuf data: {:?}", DataPacket::parse_from_bytes(data_packet).unwrap());
     }
     
     Ok(())
