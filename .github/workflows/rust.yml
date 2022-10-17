@@ -24,5 +24,5 @@ jobs:
       run: cargo test --verbose --manifest-path ServerRpi/Cargo.toml
     - name: Build LocalRpi
       run: cargo build --verbose --manifest-path LocalRpi/Cargo.toml
-    - name: Run tests for LocalRpi
-      run: cargo test --verbose --manifest-path LocalRpi/Cargo.toml
+    # - name: Run tests for LocalRpi
+    #   run: cargo test --verbose --manifest-path LocalRpi/Cargo.toml
