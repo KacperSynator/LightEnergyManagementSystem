@@ -1,9 +1,13 @@
 #include "lamp_controller.h"
 
 namespace {
+using DataPacket = light_energy_menagment_system_DataPacket;
+using LampData = light_energy_menagment_system_LampData;
 
 bool encode_string(pb_ostream_t* stream, const pb_field_t* field, void* const* arg) {
     const char* str = (const char*)(*arg);
+
+    Serial.printf("not encoded: %s\n", str);
 
     if (!pb_encode_tag_for_field(stream, field))
         return false;
@@ -11,12 +15,12 @@ bool encode_string(pb_ostream_t* stream, const pb_field_t* field, void* const* a
     return pb_encode_string(stream, (uint8_t*)str, strlen(str));
 }
 
-const std::string EncodeLampData(const lamp_controller_LampData& data) {
-    uint8_t buffer[128];
+const std::string EncodeDataPacket(const DataPacket& data) {
+    uint8_t buffer[256];
     pb_ostream_t stream = pb_ostream_from_buffer(buffer, sizeof(buffer));
 
-    if (!pb_encode(&stream, lamp_controller_LampData_fields, &data)){
-        Serial.println("failed to encode temp proto");
+    if (!pb_encode(&stream, light_energy_menagment_system_DataPacket_fields, &data)){
+        Serial.println("failed to encode data packet");
         return "Encode failed!";
     }
 
@@ -36,6 +40,7 @@ const std::string EncodeLampData(const lamp_controller_LampData& data) {
     Serial.println();
 
     return result;
+
 }
 
 bool TryReadDataTo(const float& data, float& dest) {
@@ -45,7 +50,7 @@ bool TryReadDataTo(const float& data, float& dest) {
     return true;
 }
 
-bool ReadEnergyMeterData(lamp_controller_LampData& lamp_data, PZEM004Tv30& energy_meter) {
+bool ReadEnergyMeterData(LampData& lamp_data, PZEM004Tv30& energy_meter) {
     bool succes = true;
 
     succes &= TryReadDataTo(energy_meter.voltage(), lamp_data.voltage);
@@ -60,6 +65,22 @@ bool ReadEnergyMeterData(lamp_controller_LampData& lamp_data, PZEM004Tv30& energ
 
 bool SetSleepDuration(uint64_t time_in_us) {
     return ESP_OK == esp_sleep_enable_timer_wakeup(time_in_us);
+}
+
+const char* GetMacAddress() {
+    return WiFi.macAddress().c_str();
+}
+
+void SetupDevice(DataPacket& data_packet) {
+    char mac[32];
+    strcpy(mac, GetMacAddress());
+
+    data_packet = light_energy_menagment_system_DataPacket_init_zero;
+    data_packet.has_device = true;
+    data_packet.device.name.arg = (void*) "LampController";
+    data_packet.device.name.funcs.encode = &encode_string;
+    data_packet.device.mac.arg = (void*) mac;
+    data_packet.device.mac.funcs.encode = &encode_string;
 }
 
 }  // namespace
@@ -79,9 +100,7 @@ bool LampController::Setup() {
 
     ble_connection_.Setup();
 
-    lamp_data_ = lamp_controller_LampData_init_zero;
-    lamp_data_.name.arg = (void*)"LampController";
-    lamp_data_.name.funcs.encode = &encode_string;
+    SetupDevice(data_packet_);
 
     pzem_.resetEnergy();
 
@@ -101,9 +120,10 @@ bool LampController::Setup() {
 
 
 void LampController::Loop() {
-    lamp_data_.illuminance = light_meter_.readLightLevel();
+    LampData lamp_data = light_energy_menagment_system_LampData_init_zero;
+    lamp_data.illuminance = light_meter_.readLightLevel();
 
-    if (!ReadEnergyMeterData(lamp_data_, pzem_))  {
+    if (!ReadEnergyMeterData(lamp_data, pzem_))  {
         Serial.println("Failed to read energy meter data!");
     }
 
@@ -112,7 +132,10 @@ void LampController::Loop() {
         delay(100);
     }
 
-    ble_connection_.SendData(EncodeLampData(lamp_data_));
+    data_packet_.has_lamp_data = true;
+    data_packet_.lamp_data = std::move(lamp_data);
+
+    ble_connection_.SendData(EncodeDataPacket(data_packet_));
     // esp_deep_sleep_start();
     delay(1000);
 }

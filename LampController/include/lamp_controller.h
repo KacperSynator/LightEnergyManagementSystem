@@ -3,6 +3,7 @@
 #include <string>
 
 #include <Arduino.h>
+#include <WiFi.h>
 #include <Wire.h>
 #include <BH1750.h>
 #include <PZEM004Tv30.h>
@@ -11,7 +12,7 @@
 #include <pb_encode.h>
 
 #include "ble_connection.h"
-#include "lamp_controller.pb.h"
+#include "proto/light_energy_menagment_system.pb.h"
 #include "pwm_handler.h"
 
 const int kDimLedChannel{0};
@@ -27,10 +28,12 @@ class LampController {
     void Loop();
 
   private:
+    using DataPacket = light_energy_menagment_system_DataPacket;
+
     // uint64_t sleep_duration_{kDefaultSleepDuration_s};
     float dim_duty_cycle_{};
 
-    lamp_controller_LampData lamp_data_;
+    DataPacket data_packet_;
     PwmHandler lamp_dim_{kDimLedChannel, kDimPin, kDimPwmFreq, kDimPwmResolution};
     BH1750 light_meter_;
     BLEConnection ble_connection_;
