@@ -16,3 +16,6 @@ target/
 
 # database files
 *.db3
+
+# mosquitto files
+ServerRpi-*
