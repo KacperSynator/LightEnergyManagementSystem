@@ -16,7 +16,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: Build protobuf library
+    - name: Install dependencies
       run: sudo apt-get install protobuf-compiler sqlite3 cmake libssl-dev mosquitto
     - name: Build ServerRpi
       run: cargo build --verbose --manifest-path ServerRpi/Cargo.toml
