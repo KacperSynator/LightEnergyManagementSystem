@@ -10,7 +10,7 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
+  ServerRpi:
 
     runs-on: ubuntu-latest
 
@@ -22,6 +22,16 @@ jobs:
       run: cargo build --verbose --manifest-path ServerRpi/Cargo.toml
     - name: Run tests for ServerRpi
       run: cargo test --verbose --manifest-path ServerRpi/Cargo.toml
+   
+  
+  LocalRpi:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Install dependencies
+      run: sudo apt-get install protobuf-compiler cmake libbluetooth-dev bluez bluetooth libdbus-1-dev
     - name: Build LocalRpi
       run: cargo build --verbose --manifest-path LocalRpi/Cargo.toml
     # - name: Run tests for LocalRpi
