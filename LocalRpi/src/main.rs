@@ -3,11 +3,11 @@ use log::info;
 mod ble_connection;
 
 use ble_connection::BLEConnection;
-use protobuf::{EnumOrUnknown, Message};
+use protobuf::Message;
 
 include!(concat!(env!("OUT_DIR"), "/protos/mod.rs"));
 
-use light_energy_menagment_system::{LampData, DataPacket};
+use light_energy_menagment_system::DataPacket;
 
 
 #[tokio::main]

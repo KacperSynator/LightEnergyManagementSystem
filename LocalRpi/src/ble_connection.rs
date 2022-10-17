@@ -205,3 +205,31 @@ async fn subscribe_to_read_characteristic(peripheral: &Peripheral) -> Result<(),
 
     Ok(())
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[tokio::test]
+    async fn create_ble_connection_success() -> Result<(), Box<dyn Error>> {
+        BLEConnection::new().await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn scan_for_peripherals_success() -> Result<(), Box<dyn Error>> {
+        let ble = BLEConnection::new().await?;
+        scan_for_peripherals(&ble.adapter).await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn read_devices_data_success() -> Result<(), Box<dyn Error>> {
+        let ble = BLEConnection::new().await?;
+        ble.read_devices_data().await?;
+
+        Ok(())
+    }
+}

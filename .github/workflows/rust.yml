@@ -17,8 +17,12 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Install dependencies
-      run: sudo apt-get install protobuf-compiler sqlite3 cmake libssl-dev mosquitto
+      run: sudo apt-get install protobuf-compiler sqlite3 cmake libssl-dev mosquitto libbluetooth-dev bluez bluetooth
     - name: Build ServerRpi
       run: cargo build --verbose --manifest-path ServerRpi/Cargo.toml
     - name: Run tests for ServerRpi
       run: cargo test --verbose --manifest-path ServerRpi/Cargo.toml
+    - name: Build LocalRpi
+      run: cargo build --verbose --manifest-path LocalRpi/Cargo.toml
+    - name: Run tests for LocalRpi
+      run: cargo test --verbose --manifest-path LocalRpi/Cargo.toml
