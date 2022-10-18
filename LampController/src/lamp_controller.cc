@@ -19,7 +19,7 @@ const std::string EncodeDataPacket(const DataPacket& data) {
     uint8_t buffer[256];
     pb_ostream_t stream = pb_ostream_from_buffer(buffer, sizeof(buffer));
 
-    if (!pb_encode(&stream, light_energy_menagment_system_DataPacket_fields, &data)){
+    if (!pb_encode(&stream, light_energy_menagment_system_DataPacket_fields, &data)) {
         Serial.println("failed to encode data packet");
         return "Encode failed!";
     }
@@ -68,18 +68,15 @@ bool SetSleepDuration(uint64_t time_in_us) {
 }
 
 const char* GetMacAddress() {
-    return WiFi.macAddress().c_str();
+    return strdup(WiFi.macAddress().c_str());
 }
 
 void SetupDevice(DataPacket& data_packet) {
-    char mac[32];
-    strcpy(mac, GetMacAddress());
-
     data_packet = light_energy_menagment_system_DataPacket_init_zero;
     data_packet.has_device = true;
     data_packet.device.name.arg = (void*) "LampController";
     data_packet.device.name.funcs.encode = &encode_string;
-    data_packet.device.mac.arg = (void*) mac;
+    data_packet.device.mac.arg = (void*) GetMacAddress();
     data_packet.device.mac.funcs.encode = &encode_string;
 }
 
