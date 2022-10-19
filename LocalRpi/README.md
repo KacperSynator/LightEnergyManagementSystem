@@ -35,3 +35,16 @@ curl https://sh.rustup.rs -sSf | sh
 ```bash
 RUST_LOG=info cargo run
 ```
+
+## Roadmap
+- [x] Protobuf
+- [x] BLE
+    - [x] Receive data
+    - [x] Send data
+    - [x] Tests
+- [ ] LTE module
+    - [ ] AT commands
+    - [ ] publish/subscribe using MQTT
+    - [ ] Tests
+- [ ] Integrate and test components
+- [ ] Update README
