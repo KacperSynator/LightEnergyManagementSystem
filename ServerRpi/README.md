@@ -19,15 +19,17 @@ RUST_LOG=info cargo run
 ```
 
 ## Roadmap
+- [x] Protobuf
 - [ ] Implement database
     - [x] Implement CREATE TABLES for devices and lamp_data
     - [x] Implement SELECT/INSERT requests for devices and lamp_data
     - [ ] Implement SELECT requests for lamp_data depending on device_name, timestamp
     - [ ] Unit tests for all free functions
 - [ ] Implement MQTT
-    - [ ] Mosquitto broker
-    - [ ] find and add MQTT library
-    - [ ] Handler for some MQTT library 
+    - [x] Mosquitto broker
+    - [x] find and add MQTT library
+    - [x] Handler for some MQTT library 
+    - [ ] specify topics and payloads
     - [ ] Unit tests for all free functions
 - [ ] Integrate database with MQTT
 - [ ] update README
