@@ -3,30 +3,30 @@ use paho_mqtt as mqtt;
 use std::error::Error;
 use std::time::Duration;
 
-const HOST: &str = "tcp://127.0.0.1:1883";
-const CLIENT_ID: &str = "ServerRpi";
-const SUBSCRIBE_TOPIC: &str = "test";
-const KEEP_ALIVE_TIME: u64 = 30;
-const WILL_MSG: &str = "ServerRpi lost connection";
-
 pub struct MqttConnection {
     client: mqtt::AsyncClient,
+    keep_alive_time: u64,
+    will_msg: String,
 }
 
 impl MqttConnection {
-    pub fn new() -> Result<Self, Box<dyn Error>> {
+    pub fn new(
+        host: String,
+        client_id: String,
+        keep_alive_time: u64,
+        will_msg: String,
+    ) -> Result<Self, Box<dyn Error>> {
         Ok(Self {
-            client: mqtt::AsyncClient::new(create_client_options(
-                HOST.to_string(),
-                CLIENT_ID.to_string(),
-            ))?,
+            client: mqtt::AsyncClient::new(create_client_options(host, client_id))?,
+            keep_alive_time,
+            will_msg,
         })
     }
 
     pub async fn publish(&self, topic: String, payload: String) -> Result<(), Box<dyn Error>> {
         debug!("Topic: {}/n/tPayload: {}", topic, payload);
-        let msg = mqtt::Message::new(topic, payload, mqtt::QOS_1);
-        self.check_connection().await?;
+        let msg = mqtt::Message::new(topic.clone(), payload, mqtt::QOS_1);
+        self.check_connection(topic).await?;
         self.client.publish(msg).await?;
 
         info!("Published msg");
@@ -34,28 +34,27 @@ impl MqttConnection {
         Ok(())
     }
 
-    pub async fn subscribe<F>(&self, callback: F) -> Result<(), Box<dyn Error>>
+    pub async fn subscribe<F>(&self, topic: String, callback: F) -> Result<(), Box<dyn Error>>
     where
         F: FnMut(&mqtt::AsyncClient, Option<mqtt::Message>) + 'static,
     {
-        self.check_connection().await?;
+        self.check_connection(topic.clone()).await?;
         self.client.set_message_callback(callback);
-        self.client.subscribe(SUBSCRIBE_TOPIC, mqtt::QOS_1).await?;
+        self.client.subscribe(topic, mqtt::QOS_1).await?;
 
         info!("Subscribed");
 
         Ok(())
     }
 
-    async fn connect(&self) -> Result<(), Box<dyn Error>> {
-        self.client
-            .connect(create_connection_options(
-                KEEP_ALIVE_TIME,
-                SUBSCRIBE_TOPIC.to_string(),
-                WILL_MSG.to_string(),
-                false,
-            ))
-            .await?;
+    async fn connect(&self, topic: String) -> Result<(), Box<dyn Error>> {
+        connect(
+            self.client.clone(),
+            topic,
+            self.keep_alive_time,
+            self.will_msg.clone(),
+        )
+        .await?;
 
         Ok(())
     }
@@ -66,11 +65,11 @@ impl MqttConnection {
         Ok(())
     }
 
-    async fn check_connection(&self) -> Result<(), Box<dyn Error>> {
+    async fn check_connection(&self, topic: String) -> Result<(), Box<dyn Error>> {
         debug!("Connected: {}", self.client.is_connected());
 
         if !self.client.is_connected() {
-            self.connect().await?;
+            self.connect(topic).await?;
         }
 
         Ok(())
@@ -82,6 +81,24 @@ fn create_client_options(host: String, id: String) -> mqtt::CreateOptions {
         .server_uri(host)
         .client_id(id)
         .finalize()
+}
+
+async fn connect(
+    client: mqtt::AsyncClient,
+    topic: String,
+    keep_alive_time: u64,
+    will_msg: String,
+) -> Result<(), Box<dyn Error>> {
+    client
+        .connect(create_connection_options(
+            keep_alive_time,
+            topic,
+            will_msg,
+            false,
+        ))
+        .await?;
+
+    Ok(())
 }
 
 fn create_connection_options(
@@ -103,13 +120,30 @@ fn create_connection_options(
 mod test {
     use super::*;
 
+    const TEST_HOST: &str = "tcp://127.0.0.1:1883";
+    const TEST_CLIENT_ID: &str = "TestServerRpi";
+    const TEST_KEEP_ALIVE_TIME: u64 = 5;
+    const TEST_WILL_MSG: &str = "Test ServerRpi disconnected";
+    const TEST_PUB_TOPIC: &str = "test";
+    const TEST_PUB_PAYLOAD: &str = "hello_from_test";
+    const TEST_SUB_TOPIC: &str = "test";
+
     #[tokio::test]
     async fn publish_and_subscribe_success() -> Result<(), Box<dyn Error>> {
-        let mqtt_conn = MqttConnection::new()?;
+        let mqtt_conn = MqttConnection::new(
+            TEST_HOST.to_string(),
+            TEST_CLIENT_ID.to_string(),
+            TEST_KEEP_ALIVE_TIME,
+            TEST_WILL_MSG.to_string(),
+        )?;
         mqtt_conn
-            .publish("test".to_string(), "hello_from_test".to_string())
+            .publish(TEST_PUB_TOPIC.to_string(), TEST_PUB_PAYLOAD.to_string())
             .await?;
-        mqtt_conn.subscribe(|_, _| {return;}).await?;
+        mqtt_conn
+            .subscribe(TEST_SUB_TOPIC.to_string(), |_, _| {
+                return;
+            })
+            .await?;
         mqtt_conn.disconnect().await?;
         Ok(())
     }
