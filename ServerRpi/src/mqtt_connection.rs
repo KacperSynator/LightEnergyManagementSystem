@@ -140,8 +140,11 @@ mod test {
             .publish(TEST_PUB_TOPIC.to_string(), TEST_PUB_PAYLOAD.to_string())
             .await?;
         mqtt_conn
-            .subscribe(TEST_SUB_TOPIC.to_string(), |_, _| {
-                return;
+            .subscribe(TEST_SUB_TOPIC.to_string(), |_, msg| {
+                if let Some(msg) = msg {
+                    assert_eq!(msg.topic(), TEST_PUB_TOPIC);
+                    assert_eq!(msg.payload_str(), TEST_PUB_PAYLOAD);
+                };
             })
             .await?;
         mqtt_conn.disconnect().await?;
