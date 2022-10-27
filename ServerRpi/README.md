@@ -19,13 +19,18 @@ Protobuf files are generated during cargo build process and are put in `target` 
 ```bash
 sudo apt-get install build-essential curl git sqlite3 protobuf-compiler cmake libssl-dev mosquitto
 ```
+#### 2. Setup mosquitto broker
+```bash
+chmod 777 setup_mosquitto_broker.sh
+sudo setup_mosquitto_broker.sh
+```
 
-#### 2. Install rust
+#### 3. Install rust
 ```bash
 curl https://sh.rustup.rs -sSf | sh
 ```
 
-#### 3. Build and run 
+#### 4. Build and run 
 ```bash
 RUST_LOG=info cargo run
 ```
