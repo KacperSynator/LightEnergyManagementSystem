@@ -10,8 +10,8 @@ const HOST: &str = "tcp://127.0.0.1:1883";
 const CLIENT_ID: &str = "ServerRpi";
 const KEEP_ALIVE_TIME: u64 = 30;
 const WILL_MSG: &str = "ServerRpi disconnected";
-const PUB_TOPIC: &str = "test";
-const SUB_TOPIC: &str = "test";
+const PUB_TOPIC: &str = "d/data_packet";
+const SUB_TOPIC: &str = "u/#";
 
 pub struct ServerRpi {
     mqtt_conn: MqttConnection,
