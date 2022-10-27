@@ -12,11 +12,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let local_rpi = LocalRPi::new().await?;
 
-    local_rpi.send_msg_to(&String::from("EC:62:60:93:A4:B2"), &String::from("hello from LocalRPi")).await?;
+    // local_rpi.send_msg_to(&String::from("EC:62:60:93:9D:80"), &String::from("hello from LocalRPi")).await?;
     
     loop {
         info!("Reading data");
-        local_rpi.get_lamp_controllers_data().await?;
+        local_rpi.get_and_handle_lamp_controllers_data().await?;
         sleep(Duration::from_millis(1000));
     }
 }

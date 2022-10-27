@@ -57,7 +57,7 @@ impl LocalRPi {
         Ok(())
     }
 
-    pub async fn get_lamp_controllers_data(&self) -> Result<(), Box<dyn Error>> {
+    pub async fn get_and_handle_lamp_controllers_data(&self) -> Result<(), Box<dyn Error>> {
         let data_packets = self.ble_conn.read_devices_data().await?;
         debug!("Received data: {:?}", data_packets);
 
@@ -65,6 +65,9 @@ impl LocalRPi {
             let mut data_packet = DataPacket::parse_from_bytes(data_packet).unwrap();
             info!("Protobuf data: {:?}", &data_packet);
             update_data_packet_timestamp(&mut data_packet)?;
+            unsafe {
+                self.mqtt_conn.publish(PUB_TOPIC.to_string(), String::from_utf8_unchecked(data_packet.write_to_bytes().unwrap())).await?;
+            }
         }
 
         Ok(())

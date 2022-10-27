@@ -121,9 +121,9 @@ mod test {
     use super::*;
 
     const TEST_HOST: &str = "tcp://127.0.0.1:1883";
-    const TEST_CLIENT_ID: &str = "TestServerRpi";
+    const TEST_CLIENT_ID: &str = "TestLocalRpi";
     const TEST_KEEP_ALIVE_TIME: u64 = 5;
-    const TEST_WILL_MSG: &str = "Test ServerRpi disconnected";
+    const TEST_WILL_MSG: &str = "Test LocalRpi disconnected";
     const TEST_PUB_TOPIC: &str = "test";
     const TEST_PUB_PAYLOAD: &str = "hello_from_test";
     const TEST_SUB_TOPIC: &str = "test";
