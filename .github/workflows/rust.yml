@@ -35,7 +35,7 @@ jobs:
     - name: Install dependencies
       run:  |
           sudo apt-get update
-          sudo apt-get install protobuf-compiler sqlite3 cmake libssl-dev mosquitto
+          sudo apt-get install protobuf-compiler cmake libbluetooth-dev bluez bluetooth libdbus-1-dev
     - name: Build LocalRpi
       run: cargo build --verbose --manifest-path LocalRpi/Cargo.toml
     # - name: Run tests for LocalRpi
