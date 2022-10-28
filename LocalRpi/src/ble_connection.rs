@@ -6,7 +6,7 @@ use std::error::Error;
 use std::fmt;
 use uuid::{uuid, Uuid};
 
-const PERIPHERAL_NAME_MATCH_FILTER: &str = "LightController";
+const PERIPHERAL_NAME_MATCH_FILTER: &str = "LampController";
 const NOTIFY_CHARACTERISTIC_UUID: Uuid = uuid!("95b17eef-0276-4e5d-a97b-afc0eff7b4dd");
 const WRITE_CHARACTERISTIC_UUID: Uuid = uuid!("85b17eef-0276-4e5d-a97b-afc0eff7b4dd");
 
