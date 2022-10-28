@@ -18,8 +18,8 @@ jobs:
     - uses: actions/checkout@v3
     - name: Install dependencies
       run:  |
-          sudo apt-get update \
-          sudo apt-get install protobuf-compiler sqlite3 cmake libssl-dev mosquitto \
+          sudo apt-get update
+          sudo apt-get install protobuf-compiler sqlite3 cmake libssl-dev mosquitto
     - name: Build ServerRpi
       run: cargo build --verbose --manifest-path ServerRpi/Cargo.toml
     - name: Run tests for ServerRpi
@@ -34,8 +34,8 @@ jobs:
     - uses: actions/checkout@v3
     - name: Install dependencies
       run:  |
-          sudo apt-get update \
-          sudo apt-get install protobuf-compiler sqlite3 cmake libssl-dev mosquitto \
+          sudo apt-get update
+          sudo apt-get install protobuf-compiler sqlite3 cmake libssl-dev mosquitto
     - name: Build LocalRpi
       run: cargo build --verbose --manifest-path LocalRpi/Cargo.toml
     # - name: Run tests for LocalRpi
