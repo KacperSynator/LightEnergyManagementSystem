@@ -11,9 +11,8 @@
 const auto kServiceUUID {"75b17eef-0276-4e5d-a97b-afc0eff7b4dd"};
 const auto kRxUUID {"85b17eef-0276-4e5d-a97b-afc0eff7b4dd"};
 const auto kTxUUID {"95b17eef-0276-4e5d-a97b-afc0eff7b4dd"};
-const auto kDeviceName {"LightController"};
+const auto kBleDeviceName {"LampController"};
 
-const auto kLampDimPin{13};
 class BLEConnection : public BLEServerCallbacks, public BLECharacteristicCallbacks {
   public:
     void onConnect(BLEServer* server) override;

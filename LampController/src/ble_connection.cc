@@ -29,7 +29,7 @@ void BLEConnection::onDisconnect(BLEServer* server) {
 }
 
 void BLEConnection::Setup() {
-    BLEDevice::init(kDeviceName);
+    BLEDevice::init(kBleDeviceName);
 
     server_ = BLEDevice::createServer();
     server_->setCallbacks(this);

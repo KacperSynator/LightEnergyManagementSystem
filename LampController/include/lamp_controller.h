@@ -16,21 +16,32 @@
 #include "pwm_handler.h"
 
 const int kDimLedChannel{0};
-const int kDimPin{13};
+const int kDimPin{14};
 const int kDimPwmFreq{1000};
 const int kDimPwmResolution{16};
-const int kDefaultSleepDuration_s{1};
 const int kMicroSecToSecFactor{1000000};
+const int kRelayPin{26};
+const int kPirPin{27};
+const auto kDeviceName{"LampController"};
 
 class LampController {
   public:
-    bool Setup();
+    void Setup();
     void Loop();
 
   private:
     using DataPacket = light_energy_menagment_system_DataPacket;
 
-    // uint64_t sleep_duration_{kDefaultSleepDuration_s};
+    void PrintSetupStatuses();
+
+    struct SetupStatus {
+      bool light_meter{false};
+      bool pzem{false};
+      bool wire{false};
+      bool lamp_dim{false};
+      bool all_clear{true};
+    } setup_status_;
+
     float dim_duty_cycle_{};
 
     DataPacket data_packet_;

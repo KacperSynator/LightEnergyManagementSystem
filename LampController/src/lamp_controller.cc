@@ -7,8 +7,6 @@ using LampData = light_energy_menagment_system_LampData;
 bool encode_string(pb_ostream_t* stream, const pb_field_t* field, void* const* arg) {
     const char* str = (const char*)(*arg);
 
-    Serial.printf("not encoded: %s\n", str);
-
     if (!pb_encode_tag_for_field(stream, field))
         return false;
 
@@ -30,14 +28,15 @@ const std::string EncodeDataPacket(const DataPacket& data) {
     for(int i = 0; i < stream.bytes_written; i++){
         Serial.printf("%c",buffer[i]);
     }
-    
-    Serial.print("\nSize: ");
-    Serial.println(result.size());
-
-    for (const auto& c : result) {
-        Serial.print(c);
-    }
     Serial.println();
+    
+    // Serial.print("\nSize: ");
+    // Serial.println(result.size());
+
+    // for (const auto& c : result) {
+    //     Serial.print(c);
+    // }
+    // Serial.println();
 
     return result;
 
@@ -74,7 +73,7 @@ const char* GetMacAddress() {
 void SetupDevice(DataPacket& data_packet) {
     data_packet = light_energy_menagment_system_DataPacket_init_zero;
     data_packet.has_device = true;
-    data_packet.device.name.arg = (void*) "LampController";
+    data_packet.device.name.arg = (void*) kDeviceName;
     data_packet.device.name.funcs.encode = &encode_string;
     data_packet.device.mac.arg = (void*) GetMacAddress();
     data_packet.device.mac.funcs.encode = &encode_string;
@@ -83,56 +82,53 @@ void SetupDevice(DataPacket& data_packet) {
 }  // namespace
 
 
-
-bool LampController::Setup() {
-    if (!Wire.begin()) {
-        Serial.println("Wire begin failed!");
-        return false;
-    }
+void LampController::Setup() {
+    setup_status_.all_clear = (
+        (setup_status_.wire = Wire.begin()) 
+        && (setup_status_.light_meter = light_meter_.begin()) 
+        && (setup_status_.lamp_dim = lamp_dim_.Setup()) 
+        && (setup_status_.pzem = (pzem_.readAddress() != 0x00))
+    );
     
-    if (!light_meter_.begin()) {
-        Serial.println("Light meter begin failed!");
-        return false;
-    }
-
     ble_connection_.Setup();
 
     SetupDevice(data_packet_);
 
     pzem_.resetEnergy();
-
-    if (!lamp_dim_.Setup()) {
-        Serial.println("Lamp dim pwm setup failed!");
-        return false;
-    }
-
-    // if (!SetSleepDuration(sleep_duration_ * kMicroSecToSecFactor)) {
-    //     Serial.println("Failed to set sleep duration");
-    //     return false;
-    // }
-
-    return true;
 }
 
-
-
 void LampController::Loop() {
+    if (!setup_status_.all_clear) {
+        PrintSetupStatuses();
+        delay(1000);
+        return;
+    }
+
     LampData lamp_data = light_energy_menagment_system_LampData_init_zero;
     lamp_data.illuminance = light_meter_.readLightLevel();
+
+    Serial.println(pzem_.readAddress(true), HEX);
 
     if (!ReadEnergyMeterData(lamp_data, pzem_))  {
         Serial.println("Failed to read energy meter data!");
     }
 
-    for(dim_duty_cycle_ = 0; dim_duty_cycle_  <= 1.0; dim_duty_cycle_  += 0.01) {
+    for(dim_duty_cycle_ = 0.2; dim_duty_cycle_  <= 1.0; dim_duty_cycle_  += 0.1) {
         lamp_dim_.DutyCycle(dim_duty_cycle_ );
-        delay(100);
+        delay(1000);
     }
 
     data_packet_.has_lamp_data = true;
     data_packet_.lamp_data = std::move(lamp_data);
 
     ble_connection_.SendData(EncodeDataPacket(data_packet_));
-    // esp_deep_sleep_start();
     delay(1000);
+}
+
+void LampController::PrintSetupStatuses() {
+    Serial.printf("Initialisation failed SetupStatus:\n");
+    Serial.printf("\tWire: %d\n", setup_status_.wire);
+    Serial.printf("\tPzem: %d\n", setup_status_.pzem);
+    Serial.printf("\tLight meter: %d\n", setup_status_.light_meter);
+    Serial.printf("\tLamp dim: %d\n", setup_status_.lamp_dim);
 }
