@@ -1,17 +1,17 @@
 use crate::ble_connection;
 use crate::mqtt_connection;
 
+use log::{debug, error, info};
 use protobuf::Message;
 use std::error::Error;
-use std::time::{SystemTime, UNIX_EPOCH};
-use log::{info, debug, error};
 use std::fmt;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 include!(concat!(env!("OUT_DIR"), "/protos/mod.rs"));
 
 use ble_connection::BLEConnection;
-use mqtt_connection::MqttConnection;
 use light_energy_menagment_system::DataPacket;
+use mqtt_connection::MqttConnection;
 
 const HOST: &str = "tcp://192.168.1.109:1883";
 const CLIENT_ID: &str = "LocalRpi";
@@ -19,7 +19,6 @@ const KEEP_ALIVE_TIME: u64 = 30;
 const WILL_MSG: &str = "LocalRpi disconnected";
 const PUB_TOPIC: &str = "u/data_packet";
 const SUB_TOPIC: &str = "d/#";
-
 
 #[derive(Debug)]
 struct LocalRpiError(String);
@@ -32,7 +31,6 @@ impl fmt::Display for LocalRpiError {
 
 impl Error for LocalRpiError {}
 
-
 pub struct LocalRPi {
     ble_conn: BLEConnection,
     mqtt_conn: MqttConnection,
@@ -40,7 +38,7 @@ pub struct LocalRPi {
 
 impl LocalRPi {
     pub async fn new() -> Result<Self, Box<dyn Error>> {
-        Ok(Self{
+        Ok(Self {
             ble_conn: BLEConnection::new().await?,
             mqtt_conn: MqttConnection::new(
                 HOST.to_string(),
@@ -66,7 +64,12 @@ impl LocalRPi {
             info!("Protobuf data: {:?}", &data_packet);
             update_data_packet_timestamp(&mut data_packet)?;
             unsafe {
-                self.mqtt_conn.publish(PUB_TOPIC.to_string(), String::from_utf8_unchecked(data_packet.write_to_bytes().unwrap())).await?;
+                self.mqtt_conn
+                    .publish(
+                        PUB_TOPIC.to_string(),
+                        String::from_utf8_unchecked(data_packet.write_to_bytes().unwrap()),
+                    )
+                    .await?;
             }
         }
 
@@ -77,7 +80,9 @@ impl LocalRPi {
 fn update_data_packet_timestamp(data_packet: &mut DataPacket) -> Result<(), Box<dyn Error>> {
     if data_packet.lamp_data.is_none() {
         error!("DataPacket's lamp_data is empty");
-        return Err(Box::new(LocalRpiError("DataPacket's lamp_data is empty".into())));
+        return Err(Box::new(LocalRpiError(
+            "DataPacket's lamp_data is empty".into(),
+        )));
     }
 
     let mut lamp_data = data_packet.lamp_data.as_mut().unwrap();
@@ -87,7 +92,6 @@ fn update_data_packet_timestamp(data_packet: &mut DataPacket) -> Result<(), Box<
     debug!("Updated data packet: {:?}", data_packet);
     Ok(())
 }
-
 
 #[cfg(test)]
 mod test {
