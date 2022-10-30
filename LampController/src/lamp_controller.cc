@@ -102,6 +102,7 @@ void LampController::Loop() {
 
     if (!setup_status_.all_clear) {
         Serial.println(setup_status_.str().c_str());
+        ble_connection_.SendData(setup_status_.str());
         return;
     }
 
