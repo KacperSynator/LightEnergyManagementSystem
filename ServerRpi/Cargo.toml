@@ -9,6 +9,7 @@ edition = "2021"
 log = "0.4.17"
 pretty_env_logger = "0.4.0"
 futures = "0.3.24"
+futures-util = "0.3.25"
 tokio = { version = "1.21.1", features = ["full"] }
 tokio-stream = { version = "0.1.10", features = ["sync"] }
 protobuf = "3"

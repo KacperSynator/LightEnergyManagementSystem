@@ -2,9 +2,11 @@ use log::{debug, info};
 use paho_mqtt as mqtt;
 use std::error::Error;
 use std::time::Duration;
+use futures_util::StreamExt;
 
 pub struct MqttConnection {
     client: mqtt::AsyncClient,
+    msg_stream: mqtt::AsyncReceiver<Option<mqtt::Message>>,
     keep_alive_time: u64,
     will_msg: String,
 }
@@ -15,9 +17,13 @@ impl MqttConnection {
         client_id: String,
         keep_alive_time: u64,
         will_msg: String,
+        msg_buf_size: usize,
     ) -> Result<Self, Box<dyn Error>> {
+        let mut client = mqtt::AsyncClient::new(create_client_options(host, client_id))?;
+        let msg_stream = client.get_stream(msg_buf_size);
         Ok(Self {
-            client: mqtt::AsyncClient::new(create_client_options(host, client_id))?,
+            client,
+            msg_stream,
             keep_alive_time,
             will_msg,
         })
@@ -34,17 +40,17 @@ impl MqttConnection {
         Ok(())
     }
 
-    pub async fn subscribe<F>(&self, topic: String, callback: F) -> Result<(), Box<dyn Error>>
-    where
-        F: FnMut(&mqtt::AsyncClient, Option<mqtt::Message>) + 'static,
-    {
+    pub async fn subscribe(&self, topic: String) -> Result<(), Box<dyn Error>>  {
         self.check_connection(topic.clone()).await?;
-        self.client.set_message_callback(callback);
         self.client.subscribe(topic, mqtt::QOS_1).await?;
 
         info!("Subscribed");
 
         Ok(())
+    }
+
+    pub async fn get_msg(&mut self) ->  Result<Option<mqtt::Message>, Box<dyn Error>> {
+        Ok(self.msg_stream.next().await.unwrap_or_default())
     }
 
     async fn connect(&self, topic: String) -> Result<(), Box<dyn Error>> {
