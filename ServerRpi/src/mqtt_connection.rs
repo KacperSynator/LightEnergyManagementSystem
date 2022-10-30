@@ -133,26 +133,27 @@ mod test {
     const TEST_PUB_TOPIC: &str = "test";
     const TEST_PUB_PAYLOAD: &str = "hello_from_test";
     const TEST_SUB_TOPIC: &str = "test";
+    const TEST_MSG_BUF_SIZE: usize = 10;
 
     #[tokio::test]
     async fn publish_and_subscribe_success() -> Result<(), Box<dyn Error>> {
-        let mqtt_conn = MqttConnection::new(
+        let mut mqtt_conn = MqttConnection::new(
             TEST_HOST.to_string(),
             TEST_CLIENT_ID.to_string(),
             TEST_KEEP_ALIVE_TIME,
             TEST_WILL_MSG.to_string(),
+            TEST_MSG_BUF_SIZE,
         )?;
         mqtt_conn
             .publish(TEST_PUB_TOPIC.to_string(), TEST_PUB_PAYLOAD.to_string())
             .await?;
-        mqtt_conn
-            .subscribe(TEST_SUB_TOPIC.to_string(), |_, msg| {
-                if let Some(msg) = msg {
-                    assert_eq!(msg.topic(), TEST_PUB_TOPIC);
-                    assert_eq!(msg.payload_str(), TEST_PUB_PAYLOAD);
-                };
-            })
-            .await?;
+        mqtt_conn.subscribe(TEST_SUB_TOPIC.to_string()).await?;
+        let msg = mqtt_conn.get_msg().await?;
+        if let Some(msg) = msg {
+            assert_eq!(msg.topic(), TEST_PUB_TOPIC);
+            assert_eq!(msg.payload_str(), TEST_PUB_PAYLOAD);
+        };
+            
         mqtt_conn.disconnect().await?;
         Ok(())
     }
