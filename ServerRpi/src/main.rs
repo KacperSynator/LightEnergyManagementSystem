@@ -1,4 +1,4 @@
-use log::{info, error};
+use log::{error, info};
 use std::error::Error;
 use std::thread::sleep;
 use std::time::Duration;
@@ -17,7 +17,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let mut server_rpi: ServerRpi = server_rpi.unwrap();
     info!("ServerRpi initialised");
-    
+
     if let Err(e) = server_rpi.subscribe().await {
         error!("ServerRpi subscribe failed: {:?}", e);
     }
@@ -30,7 +30,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         if let Err(e) = server_rpi.read_next_msg().await {
             error!("ServerRpi failed to read next message: {:?}", e);
         }
-        
+
         sleep(Duration::from_millis(1000));
     }
 }

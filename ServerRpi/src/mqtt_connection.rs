@@ -1,8 +1,8 @@
+use futures_util::StreamExt;
 use log::{debug, info};
 use paho_mqtt as mqtt;
 use std::error::Error;
 use std::time::Duration;
-use futures_util::StreamExt;
 
 pub struct MqttConnection {
     client: mqtt::AsyncClient,
@@ -40,7 +40,7 @@ impl MqttConnection {
         Ok(())
     }
 
-    pub async fn subscribe(&self, topic: String) -> Result<(), Box<dyn Error>>  {
+    pub async fn subscribe(&self, topic: String) -> Result<(), Box<dyn Error>> {
         self.check_connection(topic.clone()).await?;
         self.client.subscribe(topic, mqtt::QOS_1).await?;
 
@@ -49,7 +49,7 @@ impl MqttConnection {
         Ok(())
     }
 
-    pub async fn get_msg(&mut self) ->  Result<Option<mqtt::Message>, Box<dyn Error>> {
+    pub async fn get_msg(&mut self) -> Result<Option<mqtt::Message>, Box<dyn Error>> {
         Ok(self.msg_stream.next().await.unwrap_or_default())
     }
 

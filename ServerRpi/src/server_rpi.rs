@@ -15,7 +15,7 @@ const KEEP_ALIVE_TIME: u64 = 30;
 const WILL_MSG: &str = "ServerRpi disconnected";
 const MSG_BUF_SIZE: usize = 25;
 const PUB_TOPIC: &str = "d/data_packet";
-const SUB_TOPIC: &str = "u/data_packet";
+const SUB_TOPIC: &str = "u/#";
 
 #[derive(Debug)]
 struct ServerRpiError(String);
@@ -53,44 +53,42 @@ impl ServerRpi {
         Ok(())
     }
 
-    pub async fn subscribe(& self) -> Result<(), Box<dyn Error>> {
-        self.mqtt_conn.subscribe(SUB_TOPIC.to_string()).await?; 
-            
+    pub async fn subscribe(&self) -> Result<(), Box<dyn Error>> {
+        self.mqtt_conn.subscribe(SUB_TOPIC.to_string()).await?;
+
         Ok(())
     }
 
     pub async fn read_next_msg(&mut self) -> Result<(), Box<dyn Error>> {
         let msg = self.mqtt_conn.get_msg().await?;
 
-            if msg.is_none() {
-                warn!("Message is none");
-                return Ok(());
-            }
+        if msg.is_none() {
+            warn!("Message is none");
+            return Ok(());
+        }
 
-            let msg = msg.unwrap();
+        let msg = msg.unwrap();
 
-            info!(
-                "Message arrived with topic: {:?}\n\tPayload: {:?}",
-                msg.topic(),
-                msg.payload_str()
-            );
+        info!(
+            "Message arrived with topic: {:?}\n\tPayload: {:?}",
+            msg.topic(),
+            msg.payload_str()
+        );
 
-            let parsed_msg = DataPacket::parse_from_bytes(msg.payload());
+        let parsed_msg = DataPacket::parse_from_bytes(msg.payload());
 
-            if parsed_msg.is_err() {
-                return Err(Box::new(ServerRpiError("Failed to parse msg payload".into())));
-            }
+        if parsed_msg.is_err() {
+            return Err(Box::new(ServerRpiError(
+                "Failed to parse msg payload".into(),
+            )));
+        }
 
-            let result = self.db_handler.insert_data_packet(&parsed_msg.unwrap());
+        self.db_handler.insert_data_packet(&parsed_msg.unwrap())?;
 
-            if result.is_err() {
-                return Err(Box::new(ServerRpiError("Failed to insert data_packet to db".into())));
-            }
-
-            debug!(
-                "Parsed msg data_packet: {:?}",
-                DataPacket::parse_from_bytes(msg.payload()).unwrap_or_default()
-            );
+        debug!(
+            "Parsed msg data_packet: {:?}",
+            DataPacket::parse_from_bytes(msg.payload()).unwrap_or_default()
+        );
         Ok(())
     }
 }
