@@ -23,6 +23,7 @@ const int kDimPwmResolution{16};
 const int kMicroSecToSecFactor{1000000};
 const int kRelayPin{26};
 const int kPirPin{27};
+const int kDefaultLuxThreshold{200};
 const auto kDeviceName{"LampController"};
 
 class LampController {
@@ -45,6 +46,7 @@ class LampController {
     } setup_status_;
 
     float dim_duty_cycle_{};
+    int lux_threshold_{kDefaultLuxThreshold};
 
     DataPacket data_packet_;
     PwmHandler lamp_dim_{kDimLedChannel, kDimPin, kDimPwmFreq, kDimPwmResolution};

@@ -79,6 +79,19 @@ void SetupDevice(DataPacket& data_packet) {
     data_packet.device.mac.funcs.encode = &encode_string;
 }
 
+float CalculateDutyCycle(const int& threshold,
+                         const float& current_duty_cycle,
+                         const float& illuminance) 
+{
+    float relative_max_lux = illuminance / current_duty_cycle;
+    float new_duty_cycle = threshold / relative_max_lux;
+
+    if (new_duty_cycle > 1.0) new_duty_cycle = 1.0;
+    if (new_duty_cycle < 0.0) new_duty_cycle = 0.0;
+
+    return new_duty_cycle;
+}
+
 }  // namespace
 
 
@@ -89,6 +102,9 @@ void LampController::Setup() {
         && (setup_status_.lamp_dim = lamp_dim_.Setup()) 
         && (setup_status_.energy_meter = (pzem_.readAddress() != 0x00))
     );
+
+    pinMode(kRelayPin, OUTPUT);
+    pinMode(kPirPin, OUTPUT);
     
     ble_connection_.Setup();
 
@@ -115,9 +131,17 @@ void LampController::Loop() {
         Serial.println("Failed to read energy meter data!");
     }
 
-    for(dim_duty_cycle_ = 0.2; dim_duty_cycle_  <= 1.0; dim_duty_cycle_  += 0.1) {
-        lamp_dim_.DutyCycle(dim_duty_cycle_ );
-        delay(1000);
+    float duty = CalculateDutyCycle(lux_threshold_, dim_duty_cycle_, lamp_data.illuminance);
+    Serial.printf("Current duty: %f\n", dim_duty_cycle_);
+    Serial.printf("Calculated duty: %f\n", duty);
+    Serial.printf("Illuminance: %f\n", lamp_data.illuminance);
+    
+    if (duty < 1.0) {
+        digitalWrite(kRelayPin, HIGH);
+        lamp_dim_.DutyCycle(0.0);
+    } else {
+        digitalWrite(kRelayPin, LOW);
+        lamp_dim_.DutyCycle(duty);
     }
 
     data_packet_.has_lamp_data = true;
