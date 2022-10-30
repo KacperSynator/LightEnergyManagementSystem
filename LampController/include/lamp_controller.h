@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <sstream>
 
 #include <Arduino.h>
 #include <WiFi.h>
@@ -32,14 +33,15 @@ class LampController {
   private:
     using DataPacket = light_energy_menagment_system_DataPacket;
 
-    void PrintSetupStatuses();
-
     struct SetupStatus {
       bool light_meter{false};
-      bool pzem{false};
+      bool energy_meter{false};
       bool wire{false};
       bool lamp_dim{false};
-      bool all_clear{true};
+      bool all_clear{false};
+
+      const std::string str();
+
     } setup_status_;
 
     float dim_duty_cycle_{};

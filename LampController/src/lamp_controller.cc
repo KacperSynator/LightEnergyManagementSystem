@@ -87,7 +87,7 @@ void LampController::Setup() {
         (setup_status_.wire = Wire.begin()) 
         && (setup_status_.light_meter = light_meter_.begin()) 
         && (setup_status_.lamp_dim = lamp_dim_.Setup()) 
-        && (setup_status_.pzem = (pzem_.readAddress() != 0x00))
+        && (setup_status_.energy_meter = (pzem_.readAddress() != 0x00))
     );
     
     ble_connection_.Setup();
@@ -98,9 +98,10 @@ void LampController::Setup() {
 }
 
 void LampController::Loop() {
+    delay(1000);
+
     if (!setup_status_.all_clear) {
-        PrintSetupStatuses();
-        delay(1000);
+        Serial.println(setup_status_.str().c_str());
         return;
     }
 
@@ -122,13 +123,16 @@ void LampController::Loop() {
     data_packet_.lamp_data = std::move(lamp_data);
 
     ble_connection_.SendData(EncodeDataPacket(data_packet_));
-    delay(1000);
 }
 
-void LampController::PrintSetupStatuses() {
-    Serial.printf("Initialisation failed SetupStatus:\n");
-    Serial.printf("\tWire: %d\n", setup_status_.wire);
-    Serial.printf("\tPzem: %d\n", setup_status_.pzem);
-    Serial.printf("\tLight meter: %d\n", setup_status_.light_meter);
-    Serial.printf("\tLamp dim: %d\n", setup_status_.lamp_dim);
+const std::string LampController::SetupStatus::str() {
+    std::stringstream ss;
+    ss << std::boolalpha 
+       << "Initialisation failed SetupStatus:\n"
+       << "\tWire: " << wire << "\n"
+       << "\tEnergy meter: " << energy_meter << "\n"
+       << "\tLight meter: " << light_meter << "\n"
+       << "\tLamp dim:" << lamp_dim << "\n";
+
+    return ss.str();
 }
