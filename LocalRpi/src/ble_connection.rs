@@ -154,7 +154,7 @@ async fn read_data(peripheral: &Peripheral) -> Result<Vec<u8>, Box<dyn Error>> {
 
     let data = notification_stream.next().await.unwrap();
 
-    info!("Received data from [{:?}]: {:?}", data.uuid, data.value);
+    debug!("Received data from [{:?}]: {:?}", data.uuid, data.value);
 
     Ok(data.value)
 }

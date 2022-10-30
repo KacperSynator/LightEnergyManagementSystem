@@ -60,14 +60,24 @@ impl LocalRPi {
         debug!("Received data: {:?}", data_packets);
 
         for data_packet in data_packets.iter() {
-            let mut data_packet = DataPacket::parse_from_bytes(data_packet).unwrap();
-            info!("Protobuf data: {:?}", &data_packet);
-            update_data_packet_timestamp(&mut data_packet)?;
+            let mut parsed_data_packet = DataPacket::parse_from_bytes(data_packet);
+
+            if parsed_data_packet.is_err() {
+                return Err(Box::<LocalRpiError>::new(LocalRpiError(format!(
+                    "Failed to parse data_packet: [as string] {:?}",
+                    String::from_utf8_lossy(data_packet)
+                ))));
+            }
+
+            let mut parsed_data_packet = parsed_data_packet.unwrap();
+
+            info!("Protobuf data: {:?}", &parsed_data_packet);
+            update_data_packet_timestamp(&mut parsed_data_packet)?;
             unsafe {
                 self.mqtt_conn
                     .publish(
                         PUB_TOPIC.to_string(),
-                        String::from_utf8_unchecked(data_packet.write_to_bytes().unwrap()),
+                        String::from_utf8_unchecked(parsed_data_packet.write_to_bytes().unwrap()),
                     )
                     .await?;
             }

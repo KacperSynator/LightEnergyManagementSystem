@@ -23,7 +23,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     loop {
         if let Err(e) = local_rpi.get_and_handle_lamp_controllers_data().await {
-            error!("LocalRpi failed to read data: {:?}", e);
+            error!("LocalRpi failed to read/handle data: {:?}", e);
         }
 
         sleep(Duration::from_millis(1000));
