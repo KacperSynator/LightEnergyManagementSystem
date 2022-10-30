@@ -5,7 +5,7 @@ Responsible for receivng data data from LocalRpi using MQTT. Stores data in data
 Uses [SQLite](https://www.sqlite.org/index.html) as a database engine. Database is directly created and handled from Rust code using [rusqlite](https://github.com/rusqlite/rusqlite).
 
 ### Table Diagram
-![image](https://user-images.githubusercontent.com/62207289/197052059-2a33685d-2b9b-4265-9637-56ac8fb21f2b.png)
+![image](https://user-images.githubusercontent.com/62207289/198892511-65b17fc9-d247-4b44-aefb-7a07d2c06710.png)
 
 ## MQTT
 Is implemented using [eclipse paho.mqtt.rust](https://github.com/eclipse/paho.mqtt.rust). Uses [AsynClient](https://docs.rs/paho-mqtt/0.7.1/paho_mqtt/async_client/index.html) for subscribing and publishing with help of [tokio](https://tokio.rs/) for rust asynchronous runtime. Subscribing and parsing messages is implemented using message callback. [Mosquitto](https://mosquitto.org/) broker is being hosted directly on RPI.
