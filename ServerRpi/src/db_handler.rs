@@ -1,11 +1,11 @@
+use crate::DataPacket;
+use crate::Device;
+use crate::LampData;
+
 use log::{debug, error};
 use rusqlite::{Connection, ErrorCode, Result};
 use std::error::Error;
 use std::fmt;
-
-include!(concat!(env!("OUT_DIR"), "/protos/mod.rs"));
-
-use light_energy_menagment_system::{DataPacket, Device, LampData};
 
 const DATABASE_PATH: &str = "./lamps_data.db3";
 
@@ -50,6 +50,7 @@ impl DBHandler {
 
     fn create_tables(&self) -> Result<(), Box<dyn Error>> {
         create_devices_table(&self.connection)?;
+        create_channels_table(&self.connection)?;
         create_lamp_data_table(&self.connection)?;
 
         Ok(())
@@ -72,17 +73,30 @@ fn create_devices_table(connection: &Connection) -> Result<(), Box<dyn Error>> {
 fn create_lamp_data_table(connection: &Connection) -> Result<(), Box<dyn Error>> {
     connection.execute(
         "CREATE TABLE IF NOT EXISTS LampData (
-            id_lamp_data INTEGER PRIMARY KEY,
             id_device INTEGER,
-            timestamp INTEGER,
+            id_channel INTEGER,
+            timestamp DATETIME,
+            PRIMARY KEY(id_device, timestamp, id_channel),
+            FOREIGN KEY(id_device) REFERENCES devices(id_device),
+            FOREIGN KEY(id_channel) REFERENCES Channels(id_channel)
+        )",
+        (),
+    )?;
+
+    Ok(())
+}
+
+fn create_channels_table(connection: &Connection) -> Result<(), Box<dyn Error>> {
+    connection.execute(
+        "CREATE TABLE IF NOT EXISTS Channels (
+            id_channel INTEGER PRIMARY KEY,
             illuminance REAL,
             voltage REAL,
             current REAL,
             power REAL,
             energy REAL,
             frequency REAL,
-            power_factor REAL,
-            FOREIGN KEY(id_device) REFERENCES devices(id_device)
+            power_factor REAL
         )",
         (),
     )?;
@@ -131,7 +145,7 @@ fn get_device_lamp_data_before(
     device: &Device,
     timestamp: u32,
 ) -> Result<Vec<LampData>, Box<dyn Error>> {
-    let device_id = get_device_id(connection, &device)?;
+    let device_id = get_device_id(connection, device)?;
 
     if device_id.is_none() {
         error!(
@@ -141,23 +155,27 @@ fn get_device_lamp_data_before(
         return Err(Box::new(DBHandlerError("Device not found in db".into())));
     }
 
-    let mut stmt =
-        connection.prepare("SELECT * FROM LampData WHERE id_device = ?1 AND timestamp <= ?2")?;
-    let iter_lamp_data = stmt.query_map((&device_id, &timestamp), |row| {
-        let mut lamp_data = LampData::new();
-        lamp_data.timestamp = row.get(2)?;
-        lamp_data.illuminance = row.get(3)?;
-        lamp_data.voltage = row.get(4)?;
-        lamp_data.power = row.get(5)?;
-        lamp_data.energy = row.get(6)?;
-        lamp_data.frequency = row.get(7)?;
-        lamp_data.power_factor = row.get(8)?;
+    let mut stmt = connection.prepare(
+        "SELECT id_channel, timestamp FROM LampData
+             WHERE id_device = ?1 AND timestamp <= ?2",
+    )?;
+    let iter_data = stmt.query_map((&device_id.unwrap(), &timestamp), |row| {
+        let id_channel: u64 = row.get(0)?;
+        let timestamp: u32 = row.get(1)?;
 
-        Ok(lamp_data)
+        Ok((id_channel, timestamp))
     })?;
 
-    let data = iter_lamp_data
-        .map(|lamp_data| lamp_data.unwrap())
+    let data = iter_data
+        .filter(|id_and_timestamp| id_and_timestamp.is_ok())
+        .map(|id_and_timestamp| {
+            let (id_channel, timestamp) = id_and_timestamp.unwrap();
+            let mut lamp_data =
+                select_lamp_data_from_channels_by_id(connection, id_channel).unwrap();
+            lamp_data.timestamp = timestamp;
+
+            lamp_data
+        })
         .collect::<Vec<_>>();
 
     debug!(
@@ -182,25 +200,62 @@ fn get_device_lamp_data_after(
     Ok(devices_after)
 }
 
-fn add_lamp_data_to_db(
-    connection: &Connection,
-    lamp_data: &LampData,
-    device: &Device,
-) -> Result<(), Box<dyn Error>> {
-    let device_id = get_device_id(connection, &device)?;
+fn get_last_insert_rowid(connection: &Connection) -> Result<Option<u64>, Box<dyn Error>> {
+    let mut stmt = connection.prepare("SELECT last_insert_rowid()")?;
+    let rows = stmt.query_map([], |row| row.get(0))?;
 
-    if device_id.is_none() {
-        error!(
-            "Device not found in db! mac: {}, name: {}",
-            &device.mac, &device.name
-        );
-        return Err(Box::new(DBHandlerError("Device not found in db".into())));
+    let mut vec = Vec::new();
+    for row in rows {
+        vec.push(row?);
     }
 
+    debug!("Last insert rowid in vec: {:?}", vec);
+
+    if let Some(last_rowid) = vec.first() {
+        return Ok(Some(*last_rowid));
+    };
+
+    Ok(None)
+}
+
+fn select_lamp_data_from_channels_by_id(
+    connection: &Connection,
+    channel_id: u64,
+) -> Result<LampData, Box<dyn Error>> {
+    let mut stmt = connection.prepare(
+        "SELECT illuminance, voltage, current, power, energy, frequency, power_factor
+             FROM Channels WHERE id_channel = ?1",
+    )?;
+    let iter_lamp_data = stmt.query_map([channel_id], |row| {
+        let mut lamp_data = LampData::new();
+        lamp_data.illuminance = row.get(0)?;
+        lamp_data.voltage = row.get(1)?;
+        lamp_data.current = row.get(2)?;
+        lamp_data.power = row.get(3)?;
+        lamp_data.energy = row.get(4)?;
+        lamp_data.frequency = row.get(5)?;
+        lamp_data.power_factor = row.get(6)?;
+
+        Ok(lamp_data)
+    })?;
+
+    let mut lamp_data = iter_lamp_data
+        .filter(|lamp_data| lamp_data.is_ok())
+        .map(|lamp_data| lamp_data.unwrap())
+        .collect::<Vec<_>>();
+
+    if lamp_data.is_empty() {
+        return Err(Box::new(DBHandlerError(
+            "Lamp data not found in channels".into(),
+        )));
+    }
+
+    Ok(lamp_data.remove(0))
+}
+
+fn add_channel_to_db(connection: &Connection, lamp_data: &LampData) -> Result<(), Box<dyn Error>> {
     connection.execute(
-        "INSERT INTO LampData (
-            id_device,
-            timestamp,
+        "INSERT INTO Channels (
             illuminance, 
             voltage, 
             current, 
@@ -209,10 +264,8 @@ fn add_lamp_data_to_db(
             frequency, 
             power_factor
         )
-        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
         (
-            &device_id.unwrap(),
-            &lamp_data.timestamp,
             &lamp_data.illuminance,
             &lamp_data.voltage,
             &lamp_data.current,
@@ -226,11 +279,63 @@ fn add_lamp_data_to_db(
     Ok(())
 }
 
-fn get_device_id(connection: &Connection, device: &Device) -> Result<Option<u32>, Box<dyn Error>> {
+fn add_lamp_data_to_db(
+    connection: &Connection,
+    lamp_data: &LampData,
+    device: &Device,
+) -> Result<(), Box<dyn Error>> {
+    add_channel_to_db(connection, lamp_data)?;
+    let last_rowid_channel = get_last_insert_rowid(connection)?;
+
+    if last_rowid_channel.is_none() {
+        return Err(Box::new(DBHandlerError(
+            "Last inserted rowid not found".into(),
+        )));
+    }
+
+    let device_id = get_device_id(connection, device)?;
+
+    if device_id.is_none() {
+        return Err(Box::new(DBHandlerError(
+            format!(
+                "Device not found in db mac: {}, name: {}",
+                &device.mac, &device.name
+            )
+            .into(),
+        )));
+    }
+
+    let mut stmt = connection.prepare("SELECT id_channel FROM Channels WHERE rowid = ?1")?;
+    let id_channel = stmt.query_row([last_rowid_channel.unwrap()], |row| row.get::<_, u64>(0));
+    
+    if id_channel.is_err() {
+        return Err(Box::new(DBHandlerError(
+            "Id channel not found by rowid".into(),
+        )));
+    }
+
+    connection.execute(
+        "INSERT INTO LampData (
+            id_device,
+            id_channel,
+            timestamp
+        )
+        VALUES (?1, ?2, ?3)",
+        (
+            &device_id.unwrap(),
+            &id_channel.unwrap(),
+            &lamp_data.timestamp,
+        ),
+    )?;
+
+    Ok(())
+}
+
+fn get_device_id(connection: &Connection, device: &Device) -> Result<Option<u64>, Box<dyn Error>> {
     let mut stmt = connection.prepare(
         "SELECT id_device
-                                                    FROM devices
-                                                    WHERE mac_address = ?1",
+              FROM devices
+              WHERE mac_address = ?1",
     )?;
     let rows = stmt.query_map([&device.mac], |row| row.get(0))?;
 
@@ -248,6 +353,25 @@ fn get_device_id(connection: &Connection, device: &Device) -> Result<Option<u32>
     Ok(None)
 }
 
+fn get_channels_id(connection: &Connection, device_id: u64) -> Result<Vec<u64>, Box<dyn Error>> {
+    let mut stmt = connection.prepare(
+        "SELECT id_channel
+              FROM LampData
+              WHERE id_device = ?1",
+    )?;
+
+    let rows = stmt.query_map([&device_id], |row| row.get(0))?;
+
+    let mut channels_id = Vec::new();
+    for row in rows {
+        channels_id.push(row?);
+    }
+
+    debug!("Channel id vec: {:?}", channels_id);
+
+    Ok(channels_id)
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -258,6 +382,7 @@ mod test {
 
     fn create_tables(connection: &Connection) -> Result<(), Box<dyn Error>> {
         create_devices_table(&connection)?;
+        create_channels_table(&connection)?;
         create_lamp_data_table(&connection)?;
 
         Ok(())
