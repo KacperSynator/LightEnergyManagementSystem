@@ -153,7 +153,7 @@ mod test {
             assert_eq!(msg.topic(), TEST_PUB_TOPIC);
             assert_eq!(msg.payload_str(), TEST_PUB_PAYLOAD);
         };
-            
+
         mqtt_conn.disconnect().await?;
         Ok(())
     }
