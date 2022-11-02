@@ -81,10 +81,10 @@ void SetupDevice(DataPacket& data_packet) {
 
 float CalculateDutyCycle(const int& threshold,
                          const float& current_duty_cycle,
-                         const float& illuminance) 
+                         const float& illuminance)
 {
-    float relative_max_lux = illuminance / current_duty_cycle;
-    float new_duty_cycle = threshold / relative_max_lux;
+    float relative_max_lux = illuminance / (current_duty_cycle + 0.1);
+    float new_duty_cycle = static_cast<float>(threshold) / (relative_max_lux + 0.1);
 
     if (new_duty_cycle > 1.0) new_duty_cycle = 1.0;
     if (new_duty_cycle < 0.0) new_duty_cycle = 0.0;
@@ -114,20 +114,21 @@ void LampController::Setup() {
 }
 
 void LampController::Loop() {
-    delay(1000);
+    delay(5000);
 
     if (!setup_status_.all_clear) {
         Serial.println(setup_status_.str().c_str());
-        ble_connection_.SendData(setup_status_.str());
-        return;
+        // ble_connection_.SendData(setup_status_.str());
+        // Setup();
+        // return;
     }
 
     LampData lamp_data = light_energy_menagment_system_LampData_init_zero;
     lamp_data.illuminance = light_meter_.readLightLevel();
 
-    Serial.println(pzem_.readAddress(true), HEX);
+    // Serial.println(pzem_.readAddress(true), HEX);
 
-    if (!ReadEnergyMeterData(lamp_data, pzem_))  {
+    if (!ReadEnergyMeterData(lamp_data, pzem_)) {
         Serial.println("Failed to read energy meter data!");
     }
 
@@ -136,12 +137,14 @@ void LampController::Loop() {
     Serial.printf("Calculated duty: %f\n", duty);
     Serial.printf("Illuminance: %f\n", lamp_data.illuminance);
     
-    if (duty < 1.0) {
+    if (duty < 0.1) {
         digitalWrite(kRelayPin, HIGH);
-        lamp_dim_.DutyCycle(0.0);
+        lamp_dim_.DutyCycle(0.1);
+        dim_duty_cycle_ = 0.0;
     } else {
         digitalWrite(kRelayPin, LOW);
         lamp_dim_.DutyCycle(duty);
+        dim_duty_cycle_ = duty;
     }
 
     data_packet_.has_lamp_data = true;
