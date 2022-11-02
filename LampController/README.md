@@ -1,6 +1,10 @@
 # LampController
 Responsible for controlling led module. Gathers data about power consumption and light intensity using energy meter and light sensor then uses 10V PWM to dim the ligth. Can turn off/on light using relay based on peaople presence that is detected using PIR motion sensor. Measured sensor data is send to LocalRpi via BLE (bluetooth low energy), it acts as a server and sends data when LocalRpi asks for it. Implemented on ESP32 devkit board.
 
+## Totally accurate wiring diagram
+![image](https://user-images.githubusercontent.com/62207289/199588010-d4b93c61-c496-42aa-96ee-ade550534789.png)
+
+
 ## Energy meter
 Uses (PZEM-004t v3)(https://innovatorsguru.com/pzem-004t-v3/) for garhering data: voltage, current, power, energy, frequency and power factor. Commenicates via ModbusRTU interface. For handling this device [PZEM-004T-v30](https://github.com/mandulaj/PZEM-004T-v30) library is used.
 
@@ -21,18 +25,3 @@ generate_proto_files.sh
 
 ## Getting Started
 Use [PlatformioIO](https://platformio.org/) to build and install code to board. For convenience use [VSCode plugin](https://platformio.org/install/ide?install=vscode).
-
-## Roadmap
-- [x] Light sensor
-- [x] Protobuf encoding/generation
-- [ ] Energy meter
-    - [x] Software
-    - [ ] Connect and test hardware
-- [ ] LED driver
-    - [ ] Connect PWM and Relay
-    - [ ] Implement automatic dimming
-- [ ] Implement BLE
-    - [x] Sending
-    - [x] Receiving
-    - [ ] Unit/Integration tests
-- [ ] Integrate and test all components
