@@ -15,7 +15,7 @@ const KEEP_ALIVE_TIME: u64 = 30;
 const WILL_MSG: &str = "ServerRpi disconnected";
 const MSG_BUF_SIZE: usize = 25;
 const PUB_TOPIC: &str = "d/data_packet";
-const SUB_TOPIC: &str = "u/#";
+const SUB_TOPIC: &str = "u/data_packet";
 
 #[derive(Debug)]
 struct ServerRpiError(String);

@@ -23,9 +23,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     loop {
-        if let Err(e) = server_rpi.send_msg("test".to_string()).await {
-            error!("ServerRpi failed to send msg: {:?}", e);
-        }
+        // if let Err(e) = server_rpi.send_msg("test".to_string()).await {
+        //     error!("ServerRpi failed to send msg: {:?}", e);
+        // }
 
         if let Err(e) = server_rpi.read_next_msg().await {
             error!("ServerRpi failed to read next message: {:?}", e);
