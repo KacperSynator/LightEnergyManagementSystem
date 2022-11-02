@@ -36,7 +36,42 @@ Responsible for receivng data data from LocalRpi using MQTT. Stores data in data
 **Written in Rust  
 Used board: RPI 4B**
 
-## MobileApp
+## [MobileApp](MobileApp)
 Responsible for presenting data for user. Used to customize names of devices. Data is presented as graphs for periods specified by user (last month, all time). Communicates with ServerRpi using MQTT.
 
 **Written in Flutter**
+
+## [Protobuf](proto)
+For data serialization [protocal buffers](https://developers.google.com/protocol-buffers) are used. It was chosen becauese it is fast and easy to use and it generates code (yaay less typing). Current project state uses 3 messages:  
+* Device - name, mac address of device  
+* LampData - sensor data and timestamp
+* DataPacket - above 2 in one message  
+
+### Proto file
+```proto3
+syntax = "proto3";
+
+package light_energy_menagment_system;
+
+message Device {
+    string name = 1;
+    string mac = 2;
+}
+
+message LampData {
+    uint32 timestamp = 3;
+    float illuminance = 4;
+
+    float voltage = 5;
+    float current = 6;
+    float power = 7;
+    float energy = 8;
+    float frequency = 9;
+    float power_factor = 10;
+}
+
+message DataPacket {
+    Device device = 11;
+    LampData lamp_data = 12;
+}
+```
