@@ -7,7 +7,7 @@ enum DeviceType {
 }
 
 message Device {
-    optional string name = 1;
+    string name = 1;
     string mac = 2;
     DeviceType type = 3;
 }
