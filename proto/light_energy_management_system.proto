@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package light_energy_management_system;
+
+enum DeviceType {
+    LampController = 0;
+}
+
+message Device {
+    optional string name = 1;
+    string mac = 2;
+    DeviceType type = 3;
+}
+
+enum MeasurementType {
+    Illuminance = 0;
+    Voltage = 1;
+    Current = 2;
+    Power = 3;
+    Energy = 4;
+    Frequency = 5;
+    PowerFactor = 6;
+}
+
+message Measurement {
+    float value = 1;
+    MeasurementType type = 2;
+}
+
+message DeviceMeasurments {
+    uint32 timestamp = 1;
+    repeated Measurement measurements = 2;
+}
+
+message DataPacket {
+    Device device = 1;
+    repeated DeviceMeasurments device_measurements = 2;
+}
