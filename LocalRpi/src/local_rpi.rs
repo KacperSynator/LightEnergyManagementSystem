@@ -1,5 +1,6 @@
 use crate::ble_connection;
 use crate::mqtt_connection;
+use crate::DataPacket;
 
 use log::{debug, error, info};
 use protobuf::Message;
@@ -7,10 +8,7 @@ use std::error::Error;
 use std::fmt;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-include!(concat!(env!("OUT_DIR"), "/protos/mod.rs"));
-
 use ble_connection::BLEConnection;
-use light_energy_menagment_system::DataPacket;
 use mqtt_connection::MqttConnection;
 
 const HOST: &str = "tcp://192.168.1.109:1883";
@@ -18,7 +16,7 @@ const CLIENT_ID: &str = "LocalRpi";
 const KEEP_ALIVE_TIME: u64 = 30;
 const WILL_MSG: &str = "LocalRpi disconnected";
 const PUB_TOPIC: &str = "u/data_packet";
-const SUB_TOPIC: &str = "d/#";
+// const SUB_TOPIC: &str = "d/#";
 
 #[derive(Debug)]
 struct LocalRpiError(String);
@@ -60,7 +58,7 @@ impl LocalRPi {
         debug!("Received data: {:?}", data_packets);
 
         for data_packet in data_packets.iter() {
-            let mut parsed_data_packet = DataPacket::parse_from_bytes(data_packet);
+            let parsed_data_packet = DataPacket::parse_from_bytes(data_packet);
 
             if parsed_data_packet.is_err() {
                 return Err(Box::<LocalRpiError>::new(LocalRpiError(format!(
@@ -88,17 +86,21 @@ impl LocalRPi {
 }
 
 fn update_data_packet_timestamp(data_packet: &mut DataPacket) -> Result<(), Box<dyn Error>> {
-    if data_packet.lamp_data.is_none() {
-        error!("DataPacket's lamp_data is empty");
+    if data_packet.device_measurements.is_empty() {
+        error!("DataPacket's device_measurments is empty");
         return Err(Box::new(LocalRpiError(
             "DataPacket's lamp_data is empty".into(),
         )));
     }
 
-    let mut lamp_data = data_packet.lamp_data.as_mut().unwrap();
+    
     let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
     debug!("Current timestamp: {}", timestamp);
-    lamp_data.timestamp = timestamp as u32;
+
+    for device_msrt in data_packet.device_measurements.iter_mut() {
+        device_msrt.timestamp = timestamp as u32;
+    }
+    
     debug!("Updated data packet: {:?}", data_packet);
     Ok(())
 }
