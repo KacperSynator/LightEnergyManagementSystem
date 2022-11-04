@@ -144,10 +144,10 @@ mod test {
             TEST_WILL_MSG.to_string(),
             TEST_MSG_BUF_SIZE,
         )?;
+        mqtt_conn.subscribe(TEST_SUB_TOPIC.to_string()).await?;
         mqtt_conn
             .publish(TEST_PUB_TOPIC.to_string(), TEST_PUB_PAYLOAD.to_string())
             .await?;
-        mqtt_conn.subscribe(TEST_SUB_TOPIC.to_string()).await?;
         let msg = mqtt_conn.get_msg().await?;
         if let Some(msg) = msg {
             assert_eq!(msg.topic(), TEST_PUB_TOPIC);
