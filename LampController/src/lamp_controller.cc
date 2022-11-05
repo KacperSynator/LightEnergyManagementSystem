@@ -1,11 +1,22 @@
 #include "lamp_controller.h"
 
 namespace {
-using DataPacket = light_energy_menagment_system_DataPacket;
-using LampData = light_energy_menagment_system_LampData;
+using DataPacket = light_energy_management_system_DataPacket;
+using Measurment = light_energy_management_system_Measurement;
+using DeviceMeasurments = light_energy_management_system_DeviceMeasurments;
+using MeasurementType = light_energy_management_system_MeasurementType;
+using Measurments = std::vector<Measurment>;
+
+const auto Illuminance = light_energy_management_system_MeasurementType_Illuminance;
+const auto Voltage = light_energy_management_system_MeasurementType_Voltage;
+const auto Current = light_energy_management_system_MeasurementType_Current;
+const auto Power = light_energy_management_system_MeasurementType_Power;
+const auto Energy = light_energy_management_system_MeasurementType_Energy;
+const auto Frequency = light_energy_management_system_MeasurementType_Frequency;
+const auto PowerFactor = light_energy_management_system_MeasurementType_PowerFactor;
 
 bool encode_string(pb_ostream_t* stream, const pb_field_t* field, void* const* arg) {
-    const char* str = (const char*)(*arg);
+    const char* str = static_cast<const char*>(*arg);
 
     if (!pb_encode_tag_for_field(stream, field))
         return false;
@@ -13,11 +24,36 @@ bool encode_string(pb_ostream_t* stream, const pb_field_t* field, void* const* a
     return pb_encode_string(stream, (uint8_t*)str, strlen(str));
 }
 
+bool encode_measurments(pb_ostream_t* stream, const pb_field_t* field, void* const* arg) {
+    const Measurments measurments = *static_cast<Measurments*>(*arg);
+
+    Serial.printf("encode_lamp_data: %f, %d\n", measurments.front().value, measurments.front().type);
+
+    for (const auto msrt : measurments) {
+        if (!pb_encode_tag(stream, PB_WT_STRING, field->tag))
+            return false;
+        
+        if (!pb_encode_submessage(stream, light_energy_management_system_Measurement_fields, &msrt)) 
+            return false;
+    }
+
+    return true;
+}
+
+bool encode_device_measurments(pb_ostream_t* stream, const pb_field_t* field, void* const* arg) {
+    Serial.printf("encode_device_measurments:\n");
+    
+    if (!pb_encode_tag_for_field(stream, field))
+        return false;
+    
+    return pb_encode_submessage(stream, light_energy_management_system_DeviceMeasurments_fields, *arg);
+}
+
 const std::string EncodeDataPacket(const DataPacket& data) {
     uint8_t buffer[256];
     pb_ostream_t stream = pb_ostream_from_buffer(buffer, sizeof(buffer));
 
-    if (!pb_encode(&stream, light_energy_menagment_system_DataPacket_fields, &data)) {
+    if (!pb_encode(&stream, light_energy_management_system_DataPacket_fields, &data)) {
         Serial.println("failed to encode data packet");
         return "Encode failed!";
     }
@@ -42,28 +78,27 @@ const std::string EncodeDataPacket(const DataPacket& data) {
 
 }
 
-bool TryReadDataTo(const float& data, float& dest) {
-    if (isnan(data)) return false;
+bool TryReadToLampData(const float& data, Measurments& measurments, const MeasurementType& type) {
+    if (isnan(data)) {
+        measurments.emplace_back(Measurment{0.0f, type});
+        return false;
+    }
 
-    dest = data;
+    measurments.emplace_back(Measurment{data, type});
     return true;
 }
 
-bool ReadEnergyMeterData(LampData& lamp_data, PZEM004Tv30& energy_meter) {
+bool ReadEnergyMeterData(Measurments& measurments, PZEM004Tv30& energy_meter) {
     bool succes = true;
 
-    succes &= TryReadDataTo(energy_meter.voltage(), lamp_data.voltage);
-    succes &= TryReadDataTo(energy_meter.current(),lamp_data.current);
-    succes &= TryReadDataTo(energy_meter.power(), lamp_data.power);
-    succes &= TryReadDataTo(energy_meter.energy(), lamp_data.energy);
-    succes &= TryReadDataTo(energy_meter.frequency(), lamp_data.frequency);
-    succes &= TryReadDataTo(energy_meter.pf(), lamp_data.power_factor);
+    succes &= TryReadToLampData(energy_meter.voltage(), measurments, Voltage);
+    succes &= TryReadToLampData(energy_meter.current(),measurments, Current);
+    succes &= TryReadToLampData(energy_meter.power(), measurments, Power);
+    succes &= TryReadToLampData(energy_meter.energy(), measurments, Energy);
+    succes &= TryReadToLampData(energy_meter.frequency(), measurments, Frequency);
+    succes &= TryReadToLampData(energy_meter.pf(), measurments, PowerFactor);
 
     return succes;
-}
-
-bool SetSleepDuration(uint64_t time_in_us) {
-    return ESP_OK == esp_sleep_enable_timer_wakeup(time_in_us);
 }
 
 const char* GetMacAddress() {
@@ -71,10 +106,9 @@ const char* GetMacAddress() {
 }
 
 void SetupDevice(DataPacket& data_packet) {
-    data_packet = light_energy_menagment_system_DataPacket_init_zero;
+    data_packet = light_energy_management_system_DataPacket_init_zero;
     data_packet.has_device = true;
-    data_packet.device.name.arg = (void*) kDeviceName;
-    data_packet.device.name.funcs.encode = &encode_string;
+    data_packet.device.type = light_energy_management_system_DeviceType_LampController;
     data_packet.device.mac.arg = (void*) GetMacAddress();
     data_packet.device.mac.funcs.encode = &encode_string;
 }
@@ -123,32 +157,36 @@ void LampController::Loop() {
         // return;
     }
 
-    LampData lamp_data = light_energy_menagment_system_LampData_init_zero;
-    lamp_data.illuminance = light_meter_.readLightLevel();
+    Measurments measurments{};
+    measurments.emplace_back(Measurment{light_meter_.readLightLevel(), Illuminance});
 
     // Serial.println(pzem_.readAddress(true), HEX);
 
-    if (!ReadEnergyMeterData(lamp_data, pzem_)) {
+    if (!ReadEnergyMeterData(measurments, pzem_)) {
         Serial.println("Failed to read energy meter data!");
     }
 
-    float duty = CalculateDutyCycle(lux_threshold_, dim_duty_cycle_, lamp_data.illuminance);
+    float duty = CalculateDutyCycle(lux_threshold_, dim_duty_cycle_, measurments.front().value);
     Serial.printf("Current duty: %f\n", dim_duty_cycle_);
     Serial.printf("Calculated duty: %f\n", duty);
-    Serial.printf("Illuminance: %f\n", lamp_data.illuminance);
+    Serial.printf("Illuminance: %f\n", measurments.front().value);
     
     if (duty < 0.1) {
         digitalWrite(kRelayPin, HIGH);
-        lamp_dim_.DutyCycle(0.1);
-        dim_duty_cycle_ = 0.0;
+        lamp_dim_.DutyCycle(0.1f);
+        dim_duty_cycle_ = 0.0f;
     } else {
         digitalWrite(kRelayPin, LOW);
         lamp_dim_.DutyCycle(duty);
         dim_duty_cycle_ = duty;
     }
 
-    data_packet_.has_lamp_data = true;
-    data_packet_.lamp_data = std::move(lamp_data);
+    DeviceMeasurments device_measurments = light_energy_management_system_DeviceMeasurments_init_zero;
+    device_measurments.measurements.arg = static_cast<void*>(&measurments);
+    device_measurments.measurements.funcs.encode = &encode_measurments;
+
+    data_packet_.device_measurements.arg = static_cast<void*>(&device_measurments);
+    data_packet_.device_measurements.funcs.encode = &encode_device_measurments;
 
     ble_connection_.SendData(EncodeDataPacket(data_packet_));
 }

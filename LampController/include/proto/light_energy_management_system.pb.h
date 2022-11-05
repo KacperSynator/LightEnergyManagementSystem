@@ -85,7 +85,7 @@ extern "C" {
 
 /* Struct field encoding specification for nanopb */
 #define light_energy_management_system_Device_FIELDLIST(X, a) \
-X(a, CALLBACK, OPTIONAL, STRING,   name,              1) \
+X(a, CALLBACK, SINGULAR, STRING,   name,              1) \
 X(a, CALLBACK, SINGULAR, STRING,   mac,               2) \
 X(a, STATIC,   SINGULAR, UENUM,    type,              3)
 #define light_energy_management_system_Device_CALLBACK pb_default_field_callback

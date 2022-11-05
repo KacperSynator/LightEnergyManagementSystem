@@ -13,7 +13,7 @@
 #include <pb_encode.h>
 
 #include "ble_connection.h"
-#include "proto/light_energy_menagment_system.pb.h"
+#include "proto/light_energy_management_system.pb.h"
 #include "pwm_handler.h"
 
 const int kDimLedChannel{0};
@@ -32,7 +32,7 @@ class LampController {
     void Loop();
 
   private:
-    using DataPacket = light_energy_menagment_system_DataPacket;
+    using DataPacket = light_energy_management_system_DataPacket;
 
     struct SetupStatus {
       bool light_meter{false};
