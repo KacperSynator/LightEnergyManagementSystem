@@ -3,7 +3,8 @@ syntax = "proto3";
 package light_energy_management_system;
 
 enum DeviceType {
-    LampController = 0;
+    UnknownDevice = 0;
+    LampController = 1;
 }
 
 message Device {
@@ -13,13 +14,14 @@ message Device {
 }
 
 enum MeasurementType {
-    Illuminance = 0;
-    Voltage = 1;
-    Current = 2;
-    Power = 3;
-    Energy = 4;
-    Frequency = 5;
-    PowerFactor = 6;
+    UnknownMeasurment = 0;
+    Illuminance = 1;
+    Voltage = 2;
+    Current = 3;
+    Power = 4;
+    Energy = 5;
+    Frequency = 6;
+    PowerFactor = 7;
 }
 
 message Measurement {
