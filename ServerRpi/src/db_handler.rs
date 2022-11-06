@@ -1,4 +1,4 @@
-use crate::proto_utils::{device_type_utils, measurement_type_utils};
+use crate::proto_utils::{device_type_utils, measurement_status_utils, measurement_type_utils};
 use crate::DataPacket;
 use crate::Device;
 use crate::DeviceMeasurments;
@@ -54,7 +54,7 @@ impl DBHandler {
     pub fn get_measurements_of_device_after(
         &self,
         device: &Device,
-        timestamp: &u32,
+        timestamp: &u64,
     ) -> Result<Vec<DeviceMeasurments>, Box<dyn Error>> {
         get_measurements_of_device_after(&self.connection, device, timestamp)
     }
@@ -62,7 +62,7 @@ impl DBHandler {
     pub fn get_measurements_of_device_until(
         &self,
         device: &Device,
-        timestamp: &u32,
+        timestamp: &u64,
     ) -> Result<Vec<DeviceMeasurments>, Box<dyn Error>> {
         get_measurements_of_device_until(&self.connection, device, timestamp)
     }
@@ -181,14 +181,9 @@ fn add_device_measurements_to_db(
 fn add_measurement_to_db(
     connection: &Connection,
     measurement: &Measurement,
-    timestamp: u32,
+    timestamp: u64,
     device_id: u64,
 ) -> Result<(), Box<dyn Error>> {
-    let status = if measurement.value <= 0.0 {
-        "invalid"
-    } else {
-        "valid"
-    };
     add_channel_to_db(
         connection,
         &measurement.type_.enum_value_or_default(),
@@ -204,7 +199,13 @@ fn add_measurement_to_db(
                                 status
                             )
                             VALUES(?1, ?2, ?3, ?4, ?5)",
-        (device_id, channel_id, timestamp, measurement.value, status),
+        (
+            device_id,
+            channel_id,
+            timestamp,
+            measurement.value,
+            measurement_status_utils::to_string(&measurement.status.enum_value_or_default()),
+        ),
     )?;
 
     Ok(())
@@ -303,27 +304,28 @@ fn get_all_measurements_of_device(
     connection: &Connection,
     device: &Device,
 ) -> Result<Vec<DeviceMeasurments>, Box<dyn Error>> {
-    get_measurements_of_device_until(connection, device, &u32::MAX)
-}
-
-fn get_measurements_of_device_after(
-    connection: &Connection,
-    device: &Device,
-    timestamp: &u32,
-) -> Result<Vec<DeviceMeasurments>, Box<dyn Error>> {
-    let measurements_until = get_measurements_of_device_until(connection, device, timestamp)?;
-    let all_measurements = get_all_measurements_of_device(connection, device)?;
-    let measurements_after = all_measurements[measurements_until.len()..].to_vec();
-
-    debug!("Devices after: {:?}", measurements_after);
-
-    Ok(measurements_after)
+    get_measurements_of_device_after(connection, device, &u64::MIN)
 }
 
 fn get_measurements_of_device_until(
     connection: &Connection,
     device: &Device,
-    timestamp: &u32,
+    timestamp: &u64,
+) -> Result<Vec<DeviceMeasurments>, Box<dyn Error>> {
+    let measurements_after = get_measurements_of_device_after(connection, device, timestamp)?;
+    let mut all_measurements_reversed = get_all_measurements_of_device(connection, device)?;
+    all_measurements_reversed.reverse();
+    let measurements_until = all_measurements_reversed[measurements_after.len()..].to_vec();
+
+    debug!("Devices until: {:?}", measurements_until);
+
+    Ok(measurements_until)
+}
+
+fn get_measurements_of_device_after(
+    connection: &Connection,
+    device: &Device,
+    timestamp: &u64,
 ) -> Result<Vec<DeviceMeasurments>, Box<dyn Error>> {
     let mut stmt = connection.prepare(
         "SELECT 
@@ -336,16 +338,19 @@ fn get_measurements_of_device_until(
         ON Measurements.id_device = ?1
         INNER JOIN Channels
         ON Measurements.id_channel = Channels.id_channel
-        WHERE Measurements.timestamp <= ?2",
+        WHERE Measurements.timestamp >= ?2
+        ORDER BY Measurements.timestamp",
     )?;
 
-    let mut timestamp_measurements: HashMap<u32, Vec<Measurement>> = HashMap::new();
+    let mut timestamp_measurements: HashMap<u64, Vec<Measurement>> = HashMap::new();
     let mut rows = stmt.query((get_device_id(connection, device)?, &timestamp))?;
     while let Some(row) = rows.next()? {
         let mut measurement = Measurement::new();
         measurement.type_ = EnumOrUnknown::new(measurement_type_utils::from_string(&row.get(0)?));
         measurement.value = row.get(2)?;
-        let timestamp = row.get::<_, u32>(1)?;
+        measurement.status =
+            EnumOrUnknown::new(measurement_status_utils::from_string(&row.get(3)?));
+        let timestamp = row.get::<_, u64>(1)?;
 
         if !timestamp_measurements.contains_key(&timestamp) {
             timestamp_measurements.insert(timestamp, Vec::new());
@@ -369,7 +374,7 @@ fn get_measurements_of_device_until(
 
 #[cfg(test)]
 mod test {
-    use crate::DeviceType;
+    use crate::{light_energy_management_system::MeasurementStatus, DeviceType};
 
     use super::*;
     use protobuf::{MessageField, SpecialFields};
@@ -459,7 +464,7 @@ mod test {
         }
     }
 
-    fn create_device_measurments(timestamp: u32) -> DeviceMeasurments {
+    fn create_device_measurments(timestamp: u64) -> DeviceMeasurments {
         DeviceMeasurments {
             timestamp,
             measurements: Vec::new(),
@@ -471,10 +476,12 @@ mod test {
         device_measurments: &mut DeviceMeasurments,
         value: f32,
         measurement_type: MeasurementType,
+        status: MeasurementStatus,
     ) {
         device_measurments.measurements.push(Measurement {
             value,
             type_: EnumOrUnknown::new(measurement_type),
+            status: EnumOrUnknown::new(status),
             special_fields: SpecialFields::new(),
         });
     }
@@ -483,8 +490,18 @@ mod test {
     fn add_get_data_packet() -> Result<(), Box<dyn Error>> {
         let connection = connect_to_dummy_db()?;
         let mut device_measurement = create_device_measurments(10);
-        push_measurement(&mut device_measurement, 5.0, MeasurementType::Illuminance);
-        push_measurement(&mut device_measurement, 6.0, MeasurementType::Current);
+        push_measurement(
+            &mut device_measurement,
+            5.0,
+            MeasurementType::Illuminance,
+            MeasurementStatus::Valid,
+        );
+        push_measurement(
+            &mut device_measurement,
+            6.0,
+            MeasurementType::Current,
+            MeasurementStatus::Valid,
+        );
 
         let data_packet = create_data_packet(
             "123".to_string(),
@@ -542,11 +559,16 @@ mod test {
     }
 
     fn setup_get_measurements_of_device_until_after(
-    ) -> Result<(Connection, DataPacket, DeviceMeasurments, u32), Box<dyn Error>> {
+    ) -> Result<(Connection, DataPacket, DeviceMeasurments, u64), Box<dyn Error>> {
         let connection = connect_to_dummy_db()?;
         let timestamp = 1000;
         let mut device_measurement = create_device_measurments(timestamp.clone());
-        push_measurement(&mut device_measurement, 5.0, MeasurementType::Illuminance);
+        push_measurement(
+            &mut device_measurement,
+            5.0,
+            MeasurementType::Illuminance,
+            MeasurementStatus::Valid,
+        );
 
         let data_packet = create_data_packet(
             "123".to_string(),
@@ -572,13 +594,13 @@ mod test {
             setup_get_measurements_of_device_until_after()?;
 
         let result =
-            get_measurements_of_device_until(&connection, &data_packet.device, &timestamp)?;
+            get_measurements_of_device_until(&connection, &data_packet.device, &(timestamp + 1))?;
 
         assert_eq!(result.len(), 1);
         assert_eq!(result.first().unwrap(), &device_measurement);
 
         let result =
-            get_measurements_of_device_until(&connection, &data_packet.device, &(timestamp - 1))?;
+            get_measurements_of_device_until(&connection, &data_packet.device, &timestamp)?;
 
         assert!(result.is_empty());
 
@@ -591,13 +613,13 @@ mod test {
             setup_get_measurements_of_device_until_after()?;
 
         let result =
-            get_measurements_of_device_after(&connection, &data_packet.device, &(timestamp - 1))?;
+            get_measurements_of_device_after(&connection, &data_packet.device, &timestamp)?;
 
         assert_eq!(result.len(), 1);
         assert_eq!(result.first().unwrap(), &device_measurement);
 
         let result =
-            get_measurements_of_device_after(&connection, &data_packet.device, &timestamp)?;
+            get_measurements_of_device_after(&connection, &data_packet.device, &(timestamp + 1))?;
 
         assert!(result.is_empty());
 

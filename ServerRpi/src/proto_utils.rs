@@ -61,3 +61,26 @@ pub mod measurement_type_utils {
         }
     }
 }
+
+pub mod measurement_status_utils {
+    use crate::MeasurementStatus;
+
+    const INVALID: &str = "invalid";
+    const VALID: &str = "valid";
+
+    use MeasurementStatus::*;
+
+    pub fn to_string(measurement_status: &MeasurementStatus) -> String {
+        String::from(match measurement_status {
+            Valid => VALID,
+            Invalid => INVALID,
+        })
+    }
+
+    pub fn from_string(string: &String) -> MeasurementStatus {
+        match string.as_str() {
+            VALID => Valid,
+            _ => Invalid,
+        }
+    }
+}
