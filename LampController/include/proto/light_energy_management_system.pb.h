@@ -11,18 +11,25 @@
 
 /* Enum definitions */
 typedef enum _light_energy_management_system_DeviceType { 
-    light_energy_management_system_DeviceType_LampController = 0 
+    light_energy_management_system_DeviceType_UnknownDevice = 0, 
+    light_energy_management_system_DeviceType_LampController = 1 
 } light_energy_management_system_DeviceType;
 
 typedef enum _light_energy_management_system_MeasurementType { 
-    light_energy_management_system_MeasurementType_Illuminance = 0, 
-    light_energy_management_system_MeasurementType_Voltage = 1, 
-    light_energy_management_system_MeasurementType_Current = 2, 
-    light_energy_management_system_MeasurementType_Power = 3, 
-    light_energy_management_system_MeasurementType_Energy = 4, 
-    light_energy_management_system_MeasurementType_Frequency = 5, 
-    light_energy_management_system_MeasurementType_PowerFactor = 6 
+    light_energy_management_system_MeasurementType_UnknownMeasurment = 0, 
+    light_energy_management_system_MeasurementType_Illuminance = 1, 
+    light_energy_management_system_MeasurementType_Voltage = 2, 
+    light_energy_management_system_MeasurementType_Current = 3, 
+    light_energy_management_system_MeasurementType_Power = 4, 
+    light_energy_management_system_MeasurementType_Energy = 5, 
+    light_energy_management_system_MeasurementType_Frequency = 6, 
+    light_energy_management_system_MeasurementType_PowerFactor = 7 
 } light_energy_management_system_MeasurementType;
+
+typedef enum _light_energy_management_system_MeasurementStatus { 
+    light_energy_management_system_MeasurementStatus_Invalid = 0, 
+    light_energy_management_system_MeasurementStatus_Valid = 1 
+} light_energy_management_system_MeasurementStatus;
 
 /* Struct definitions */
 typedef struct _light_energy_management_system_Device { 
@@ -32,13 +39,14 @@ typedef struct _light_energy_management_system_Device {
 } light_energy_management_system_Device;
 
 typedef struct _light_energy_management_system_DeviceMeasurments { 
-    uint32_t timestamp; 
+    uint64_t timestamp; 
     pb_callback_t measurements; 
 } light_energy_management_system_DeviceMeasurments;
 
 typedef struct _light_energy_management_system_Measurement { 
     float value; 
     light_energy_management_system_MeasurementType type; 
+    light_energy_management_system_MeasurementStatus status; 
 } light_energy_management_system_Measurement;
 
 typedef struct _light_energy_management_system_DataPacket { 
@@ -49,13 +57,17 @@ typedef struct _light_energy_management_system_DataPacket {
 
 
 /* Helper constants for enums */
-#define _light_energy_management_system_DeviceType_MIN light_energy_management_system_DeviceType_LampController
+#define _light_energy_management_system_DeviceType_MIN light_energy_management_system_DeviceType_UnknownDevice
 #define _light_energy_management_system_DeviceType_MAX light_energy_management_system_DeviceType_LampController
 #define _light_energy_management_system_DeviceType_ARRAYSIZE ((light_energy_management_system_DeviceType)(light_energy_management_system_DeviceType_LampController+1))
 
-#define _light_energy_management_system_MeasurementType_MIN light_energy_management_system_MeasurementType_Illuminance
+#define _light_energy_management_system_MeasurementType_MIN light_energy_management_system_MeasurementType_UnknownMeasurment
 #define _light_energy_management_system_MeasurementType_MAX light_energy_management_system_MeasurementType_PowerFactor
 #define _light_energy_management_system_MeasurementType_ARRAYSIZE ((light_energy_management_system_MeasurementType)(light_energy_management_system_MeasurementType_PowerFactor+1))
+
+#define _light_energy_management_system_MeasurementStatus_MIN light_energy_management_system_MeasurementStatus_Invalid
+#define _light_energy_management_system_MeasurementStatus_MAX light_energy_management_system_MeasurementStatus_Valid
+#define _light_energy_management_system_MeasurementStatus_ARRAYSIZE ((light_energy_management_system_MeasurementStatus)(light_energy_management_system_MeasurementStatus_Valid+1))
 
 
 #ifdef __cplusplus
@@ -64,11 +76,11 @@ extern "C" {
 
 /* Initializer values for message structs */
 #define light_energy_management_system_Device_init_default {{{NULL}, NULL}, {{NULL}, NULL}, _light_energy_management_system_DeviceType_MIN}
-#define light_energy_management_system_Measurement_init_default {0, _light_energy_management_system_MeasurementType_MIN}
+#define light_energy_management_system_Measurement_init_default {0, _light_energy_management_system_MeasurementType_MIN, _light_energy_management_system_MeasurementStatus_MIN}
 #define light_energy_management_system_DeviceMeasurments_init_default {0, {{NULL}, NULL}}
 #define light_energy_management_system_DataPacket_init_default {false, light_energy_management_system_Device_init_default, {{NULL}, NULL}}
 #define light_energy_management_system_Device_init_zero {{{NULL}, NULL}, {{NULL}, NULL}, _light_energy_management_system_DeviceType_MIN}
-#define light_energy_management_system_Measurement_init_zero {0, _light_energy_management_system_MeasurementType_MIN}
+#define light_energy_management_system_Measurement_init_zero {0, _light_energy_management_system_MeasurementType_MIN, _light_energy_management_system_MeasurementStatus_MIN}
 #define light_energy_management_system_DeviceMeasurments_init_zero {0, {{NULL}, NULL}}
 #define light_energy_management_system_DataPacket_init_zero {false, light_energy_management_system_Device_init_zero, {{NULL}, NULL}}
 
@@ -80,6 +92,7 @@ extern "C" {
 #define light_energy_management_system_DeviceMeasurments_measurements_tag 2
 #define light_energy_management_system_Measurement_value_tag 1
 #define light_energy_management_system_Measurement_type_tag 2
+#define light_energy_management_system_Measurement_status_tag 3
 #define light_energy_management_system_DataPacket_device_tag 1
 #define light_energy_management_system_DataPacket_device_measurements_tag 2
 
@@ -93,12 +106,13 @@ X(a, STATIC,   SINGULAR, UENUM,    type,              3)
 
 #define light_energy_management_system_Measurement_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, FLOAT,    value,             1) \
-X(a, STATIC,   SINGULAR, UENUM,    type,              2)
+X(a, STATIC,   SINGULAR, UENUM,    type,              2) \
+X(a, STATIC,   SINGULAR, UENUM,    status,            3)
 #define light_energy_management_system_Measurement_CALLBACK NULL
 #define light_energy_management_system_Measurement_DEFAULT NULL
 
 #define light_energy_management_system_DeviceMeasurments_FIELDLIST(X, a) \
-X(a, STATIC,   SINGULAR, UINT32,   timestamp,         1) \
+X(a, STATIC,   SINGULAR, UINT64,   timestamp,         1) \
 X(a, CALLBACK, REPEATED, MESSAGE,  measurements,      2)
 #define light_energy_management_system_DeviceMeasurments_CALLBACK pb_default_field_callback
 #define light_energy_management_system_DeviceMeasurments_DEFAULT NULL
@@ -127,7 +141,7 @@ extern const pb_msgdesc_t light_energy_management_system_DataPacket_msg;
 /* light_energy_management_system_Device_size depends on runtime parameters */
 /* light_energy_management_system_DeviceMeasurments_size depends on runtime parameters */
 /* light_energy_management_system_DataPacket_size depends on runtime parameters */
-#define light_energy_management_system_Measurement_size 7
+#define light_energy_management_system_Measurement_size 9
 
 #ifdef __cplusplus
 } /* extern "C" */
