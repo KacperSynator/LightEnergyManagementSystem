@@ -5,9 +5,10 @@ use crate::DeviceMeasurments;
 use crate::Measurement;
 use crate::MeasurementType;
 
-use log::{debug, error};
-use protobuf::EnumOrUnknown;
+use log::debug;
+use protobuf::{EnumOrUnknown, SpecialFields};
 use rusqlite::{Connection, ErrorCode, Result};
+use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
 
@@ -37,19 +38,41 @@ impl DBHandler {
     }
 
     pub fn insert_data_packet(&self, data_packet: &DataPacket) -> Result<(), Box<dyn Error>> {
-        add_device_to_db(&self.connection, &data_packet.device)?;
-        add_device_measurements_to_db(
-            &self.connection,
-            &data_packet.device_measurements,
-            &data_packet.device,
-        )?;
+        add_data_packet_to_db(&self.connection, data_packet)?;
 
         Ok(())
     }
 
-    // pub fn get_all_devices(&self) -> Result<Vec<Device>, Box<dyn Error>> {
-    //     get_all_devices_from_db(&self.connection)
-    // }
+    pub fn get_all_devices(&self) -> Result<Vec<Device>, Box<dyn Error>> {
+        get_all_devices_from_db(&self.connection)
+    }
+
+    pub fn get_device_by_mac(&self, mac: &String) -> Result<Device, Box<dyn Error>> {
+        get_device_by_mac(&self.connection, mac)
+    }
+
+    pub fn get_measurements_of_device_after(
+        &self,
+        device: &Device,
+        timestamp: &u32,
+    ) -> Result<Vec<DeviceMeasurments>, Box<dyn Error>> {
+        get_measurements_of_device_after(&self.connection, device, timestamp)
+    }
+
+    pub fn get_measurements_of_device_until(
+        &self,
+        device: &Device,
+        timestamp: &u32,
+    ) -> Result<Vec<DeviceMeasurments>, Box<dyn Error>> {
+        get_measurements_of_device_until(&self.connection, device, timestamp)
+    }
+
+    pub fn get_all_measurements_of_device(
+        &self,
+        device: &Device,
+    ) -> Result<Vec<DeviceMeasurments>, Box<dyn Error>> {
+        get_all_measurements_of_device(&self.connection, device)
+    }
 }
 
 fn setup_db(connection: &Connection) -> Result<(), Box<dyn Error>> {
@@ -106,6 +129,20 @@ fn create_channels_table(connection: &Connection) -> Result<(), Box<dyn Error>> 
     Ok(())
 }
 
+fn add_data_packet_to_db(
+    connection: &Connection,
+    data_packet: &DataPacket,
+) -> Result<(), Box<dyn Error>> {
+    add_device_to_db(connection, &data_packet.device)?;
+    add_device_measurements_to_db(
+        connection,
+        &data_packet.device_measurements,
+        &data_packet.device,
+    )?;
+
+    Ok(())
+}
+
 fn add_device_to_db(connection: &Connection, device: &Device) -> Result<(), Box<dyn Error>> {
     let device_type = device_type_utils::to_string(&device.type_.enum_value_or_default());
     let res = connection.execute(
@@ -147,8 +184,16 @@ fn add_measurement_to_db(
     timestamp: u32,
     device_id: u64,
 ) -> Result<(), Box<dyn Error>> {
-    let status = if measurement.value <= 0.0 {"invalid"} else {"valid"};
-    add_channel_to_db(connection, &measurement.type_.enum_value_or_default(), device_id)?;
+    let status = if measurement.value <= 0.0 {
+        "invalid"
+    } else {
+        "valid"
+    };
+    add_channel_to_db(
+        connection,
+        &measurement.type_.enum_value_or_default(),
+        device_id,
+    )?;
     let channel_id = get_channel_id(connection, &measurement.type_.enum_value_or_default())?;
     connection.execute(
         "INSERT INTO Measurements (
@@ -189,6 +234,23 @@ fn add_channel_to_db(
     Ok(())
 }
 
+fn get_device_by_mac(connection: &Connection, mac: &String) -> Result<Device, Box<dyn Error>> {
+    let mut stmt = connection.prepare(
+        "SELECT type, name
+        FROM Devices
+        WHERE mac_address = ?1",
+    )?;
+
+    Ok(stmt.query_row([mac], |row| {
+        let mut device = Device::new();
+        device.mac = mac.clone();
+        device.type_ = EnumOrUnknown::new(device_type_utils::from_string(&row.get(0)?));
+        device.name = row.get(1)?;
+
+        Ok(device)
+    })?)
+}
+
 fn get_device_id(connection: &Connection, device: &Device) -> Result<u64, Box<dyn Error>> {
     let mut stmt = connection.prepare(
         "SELECT id_device
@@ -199,14 +261,20 @@ fn get_device_id(connection: &Connection, device: &Device) -> Result<u64, Box<dy
     Ok(stmt.query_row([&device.mac], |row| row.get::<_, u64>(0))?)
 }
 
-fn get_channel_id(connection: &Connection, measurement_type: &MeasurementType) -> Result<u64, Box<dyn Error>> {
+fn get_channel_id(
+    connection: &Connection,
+    measurement_type: &MeasurementType,
+) -> Result<u64, Box<dyn Error>> {
     let mut stmt = connection.prepare(
         "SELECT id_channel
               FROM Channels
               WHERE name = ?1",
     )?;
 
-    Ok(stmt.query_row([&measurement_type_utils::to_string(measurement_type)], |row| row.get::<_, u64>(0))?)
+    Ok(stmt.query_row(
+        [&measurement_type_utils::to_string(measurement_type)],
+        |row| row.get::<_, u64>(0),
+    )?)
 }
 
 fn get_all_devices_from_db(connection: &Connection) -> Result<Vec<Device>, Box<dyn Error>> {
@@ -215,12 +283,14 @@ fn get_all_devices_from_db(connection: &Connection) -> Result<Vec<Device>, Box<d
         let mut device = Device::new();
         device.name = row.get(0)?;
         device.mac = row.get(1)?;
-        device.type_ = EnumOrUnknown::new(device_type_utils::from_string(&row.get::<_, String>(2)?));
+        device.type_ =
+            EnumOrUnknown::new(device_type_utils::from_string(&row.get::<_, String>(2)?));
 
         Ok(device)
     })?;
 
     let devices = devices_iter
+        .filter(|device| device.is_ok())
         .map(|device| device.unwrap())
         .collect::<Vec<_>>();
 
@@ -229,223 +299,84 @@ fn get_all_devices_from_db(connection: &Connection) -> Result<Vec<Device>, Box<d
     Ok(devices)
 }
 
-// fn get_device_lamp_data_before(
-//     connection: &Connection,
-//     device: &Device,
-//     timestamp: u32,
-// ) -> Result<Vec<LampData>, Box<dyn Error>> {
-//     let device_id = get_device_id(connection, device)?;
+fn get_all_measurements_of_device(
+    connection: &Connection,
+    device: &Device,
+) -> Result<Vec<DeviceMeasurments>, Box<dyn Error>> {
+    get_measurements_of_device_until(connection, device, &u32::MAX)
+}
 
-//     if device_id.is_none() {
-//         error!(
-//             "Device not found in db! mac: {}, name: {}",
-//             &device.mac, &device.name
-//         );
-//         return Err(Box::new(DBHandlerError("Device not found in db".into())));
-//     }
+fn get_measurements_of_device_after(
+    connection: &Connection,
+    device: &Device,
+    timestamp: &u32,
+) -> Result<Vec<DeviceMeasurments>, Box<dyn Error>> {
+    let measurements_until = get_measurements_of_device_until(connection, device, timestamp)?;
+    let all_measurements = get_all_measurements_of_device(connection, device)?;
+    let measurements_after = all_measurements[measurements_until.len()..].to_vec();
 
-//     let mut stmt = connection.prepare(
-//         "SELECT id_channel, timestamp FROM LampData
-//              WHERE id_device = ?1 AND timestamp <= ?2",
-//     )?;
-//     let iter_data = stmt.query_map((&device_id.unwrap(), &timestamp), |row| {
-//         let id_channel: u64 = row.get(0)?;
-//         let timestamp: u32 = row.get(1)?;
+    debug!("Devices after: {:?}", measurements_after);
 
-//         Ok((id_channel, timestamp))
-//     })?;
+    Ok(measurements_after)
+}
 
-//     let data = iter_data
-//         .filter(|id_and_timestamp| id_and_timestamp.is_ok())
-//         .map(|id_and_timestamp| {
-//             let (id_channel, timestamp) = id_and_timestamp.unwrap();
-//             let mut lamp_data =
-//                 select_lamp_data_from_channels_by_id(connection, id_channel).unwrap();
-//             lamp_data.timestamp = timestamp;
+fn get_measurements_of_device_until(
+    connection: &Connection,
+    device: &Device,
+    timestamp: &u32,
+) -> Result<Vec<DeviceMeasurments>, Box<dyn Error>> {
+    let mut stmt = connection.prepare(
+        "SELECT 
+            Channels.name,
+            Measurements.timestamp,
+            Measurements.value,
+            Measurements.status
+        FROM Measurements
+        INNER JOIN Devices
+        ON Measurements.id_device = ?1
+        INNER JOIN Channels
+        ON Measurements.id_channel = Channels.id_channel
+        WHERE Measurements.timestamp <= ?2",
+    )?;
 
-//             lamp_data
-//         })
-//         .collect::<Vec<_>>();
+    let mut timestamp_measurements: HashMap<u32, Vec<Measurement>> = HashMap::new();
+    let mut rows = stmt.query((get_device_id(connection, device)?, &timestamp))?;
+    while let Some(row) = rows.next()? {
+        let mut measurement = Measurement::new();
+        measurement.type_ = EnumOrUnknown::new(measurement_type_utils::from_string(&row.get(0)?));
+        measurement.value = row.get(2)?;
+        let timestamp = row.get::<_, u32>(1)?;
 
-//     debug!(
-//         "Lamp data for device {:?} before {} received from db\n\t{:?}",
-//         device, timestamp, data
-//     );
+        if !timestamp_measurements.contains_key(&timestamp) {
+            timestamp_measurements.insert(timestamp, Vec::new());
+        }
 
-//     Ok(data)
-// }
+        timestamp_measurements
+            .get_mut(&timestamp)
+            .unwrap()
+            .push(measurement);
+    }
 
-// fn get_device_lamp_data_after(
-//     connection: &Connection,
-//     device: &Device,
-//     timestamp: u32,
-// ) -> Result<Vec<LampData>, Box<dyn Error>> {
-//     let devices_before = get_device_lamp_data_before(connection, device, timestamp)?;
-//     let all_devices = get_device_lamp_data_before(connection, device, u32::MAX)?;
-//     let devices_after = all_devices[devices_before.len()..].to_vec();
-
-//     debug!("Devices after: {:?}", devices_after);
-
-//     Ok(devices_after)
-// }
-
-// fn get_last_insert_rowid(connection: &Connection) -> Result<Option<u64>, Box<dyn Error>> {
-//     let mut stmt = connection.prepare("SELECT last_insert_rowid()")?;
-//     let rows = stmt.query_map([], |row| row.get(0))?;
-
-//     let mut vec = Vec::new();
-//     for row in rows {
-//         vec.push(row?);
-//     }
-
-//     debug!("Last insert rowid in vec: {:?}", vec);
-
-//     if let Some(last_rowid) = vec.first() {
-//         return Ok(Some(*last_rowid));
-//     };
-
-//     Ok(None)
-// }
-
-// fn select_lamp_data_from_channels_by_id(
-//     connection: &Connection,
-//     channel_id: u64,
-// ) -> Result<LampData, Box<dyn Error>> {
-//     let mut stmt = connection.prepare(
-//         "SELECT illuminance, voltage, current, power, energy, frequency, power_factor
-//              FROM Channels WHERE id_channel = ?1",
-//     )?;
-//     let iter_lamp_data = stmt.query_map([channel_id], |row| {
-//         let mut lamp_data = LampData::new();
-//         lamp_data.illuminance = row.get(0)?;
-//         lamp_data.voltage = row.get(1)?;
-//         lamp_data.current = row.get(2)?;
-//         lamp_data.power = row.get(3)?;
-//         lamp_data.energy = row.get(4)?;
-//         lamp_data.frequency = row.get(5)?;
-//         lamp_data.power_factor = row.get(6)?;
-
-//         Ok(lamp_data)
-//     })?;
-
-//     let mut lamp_data = iter_lamp_data
-//         .filter(|lamp_data| lamp_data.is_ok())
-//         .map(|lamp_data| lamp_data.unwrap())
-//         .collect::<Vec<_>>();
-
-//     if lamp_data.is_empty() {
-//         return Err(Box::new(DBHandlerError(
-//             "Lamp data not found in channels".into(),
-//         )));
-//     }
-
-//     Ok(lamp_data.remove(0))
-// }
-
-// fn add_channel_to_db(connection: &Connection, lamp_data: &LampData) -> Result<(), Box<dyn Error>> {
-//     connection.execute(
-//         "INSERT INTO Channels (
-//             illuminance,
-//             voltage,
-//             current,
-//             power,
-//             energy,
-//             frequency,
-//             power_factor
-//         )
-//         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-//         (
-//             &lamp_data.illuminance,
-//             &lamp_data.voltage,
-//             &lamp_data.current,
-//             &lamp_data.power,
-//             &lamp_data.energy,
-//             &lamp_data.frequency,
-//             &lamp_data.power_factor,
-//         ),
-//     )?;
-
-//     Ok(())
-// }
-
-// fn add_lamp_data_to_db(
-//     connection: &Connection,
-//     lamp_data: &LampData,
-//     device: &Device,
-// ) -> Result<(), Box<dyn Error>> {
-//     add_channel_to_db(connection, lamp_data)?;
-//     let last_rowid_channel = get_last_insert_rowid(connection)?;
-
-//     if last_rowid_channel.is_none() {
-//         return Err(Box::new(DBHandlerError(
-//             "Last inserted rowid not found".into(),
-//         )));
-//     }
-
-//     let device_id = get_device_id(connection, device)?;
-
-//     if device_id.is_none() {
-//         return Err(Box::new(DBHandlerError(
-//             format!(
-//                 "Device not found in db mac: {}, name: {}",
-//                 &device.mac, &device.name
-//             )
-//             .into(),
-//         )));
-//     }
-
-//     let mut stmt = connection.prepare("SELECT id_channel FROM Channels WHERE rowid = ?1")?;
-//     let id_channel = stmt.query_row([last_rowid_channel.unwrap()], |row| row.get::<_, u64>(0));
-
-//     if id_channel.is_err() {
-//         return Err(Box::new(DBHandlerError(
-//             "Id channel not found by rowid".into(),
-//         )));
-//     }
-
-//     connection.execute(
-//         "INSERT INTO LampData (
-//             id_device,
-//             id_channel,
-//             timestamp
-//         )
-//         VALUES (?1, ?2, ?3)",
-//         (
-//             &device_id.unwrap(),
-//             &id_channel.unwrap(),
-//             &lamp_data.timestamp,
-//         ),
-//     )?;
-
-//     Ok(())
-// }
-
-// fn get_channels_id(connection: &Connection, device_id: u64) -> Result<Vec<u64>, Box<dyn Error>> {
-//     let mut stmt = connection.prepare(
-//         "SELECT id_channel
-//               FROM LampData
-//               WHERE id_device = ?1",
-//     )?;
-
-//     let rows = stmt.query_map([&device_id], |row| row.get(0))?;
-
-//     let mut channels_id = Vec::new();
-//     for row in rows {
-//         channels_id.push(row?);
-//     }
-
-//     debug!("Channel id vec: {:?}", channels_id);
-
-//     Ok(channels_id)
-// }
+    Ok(timestamp_measurements
+        .drain()
+        .map(|(timestamp, measurements)| DeviceMeasurments {
+            timestamp,
+            measurements,
+            special_fields: SpecialFields::new(),
+        })
+        .collect::<Vec<_>>())
+}
 
 #[cfg(test)]
 mod test {
+    use crate::DeviceType;
+
     use super::*;
+    use protobuf::{MessageField, SpecialFields};
 
     fn connect_to_dummy_db() -> Result<Connection, Box<dyn Error>> {
-        // Ok(Connection::open_in_memory()?)
-        Ok(Connection::open("test.db3")?)
+        Ok(Connection::open_in_memory()?)
+        // Ok(Connection::open("test.db3")?)
     }
 
     #[test]
@@ -493,13 +424,86 @@ mod test {
     }
 
     #[test]
-    fn add_data_packet() -> Result<(), Box<dyn Error>> {
+    fn add_same_channel_twice() -> Result<(), Box<dyn Error>> {
         let connection = connect_to_dummy_db()?;
-        let data_packet = DataPacket::new();
+        let measurement_type = &MeasurementType::Illuminance;
+        let device_id = 1;
+
+        setup_db(&connection)?;
+        add_channel_to_db(&connection, measurement_type, device_id)?;
+        add_channel_to_db(&connection, measurement_type, device_id)?;
+
+        Ok(())
+    }
+
+    fn create_data_packet(
+        device_mac: String,
+        device_name: String,
+        device_type: DeviceType,
+        device_measurements: Option<&DeviceMeasurments>,
+    ) -> DataPacket {
+        let device_measurements = if device_measurements.is_none() {
+            Vec::new()
+        } else {
+            vec![device_measurements.unwrap().clone()]
+        };
+        DataPacket {
+            device: MessageField::some(Device {
+                mac: device_mac,
+                name: device_name,
+                type_: EnumOrUnknown::new(device_type),
+                special_fields: SpecialFields::new(),
+            }),
+            device_measurements,
+            special_fields: SpecialFields::new(),
+        }
+    }
+
+    fn create_device_measurments(timestamp: u32) -> DeviceMeasurments {
+        DeviceMeasurments {
+            timestamp,
+            measurements: Vec::new(),
+            special_fields: SpecialFields::new(),
+        }
+    }
+
+    fn push_measurement(
+        device_measurments: &mut DeviceMeasurments,
+        value: f32,
+        measurement_type: MeasurementType,
+    ) {
+        device_measurments.measurements.push(Measurement {
+            value,
+            type_: EnumOrUnknown::new(measurement_type),
+            special_fields: SpecialFields::new(),
+        });
+    }
+
+    #[test]
+    fn add_get_data_packet() -> Result<(), Box<dyn Error>> {
+        let connection = connect_to_dummy_db()?;
+        let mut device_measurement = create_device_measurments(10);
+        push_measurement(&mut device_measurement, 5.0, MeasurementType::Illuminance);
+        push_measurement(&mut device_measurement, 6.0, MeasurementType::Current);
+
+        let data_packet = create_data_packet(
+            "123".to_string(),
+            "".to_string(),
+            DeviceType::LampController,
+            Some(&device_measurement),
+        );
 
         setup_db(&connection)?;
         add_device_to_db(&connection, &data_packet.device)?;
-        add_device_measurements_to_db(&connection, &data_packet.device_measurements, &data_packet.device)?;
+        add_device_measurements_to_db(
+            &connection,
+            &data_packet.device_measurements,
+            &data_packet.device,
+        )?;
+
+        let res = get_all_measurements_of_device(&connection, &data_packet.device)?;
+        assert_eq!(res.len(), 1);
+        assert_eq!(res.first().unwrap(), &device_measurement);
 
         Ok(())
     }
@@ -517,52 +521,86 @@ mod test {
         Ok(())
     }
 
-    // fn setup_device_lamp_data_before_and_after(
-    // ) -> Result<(Connection, Device, LampData, LampData, u32), Box<dyn Error>> {
-    //     let connection = connect_to_dummy_db()?;
-    //     let device = Device::new();
-    //     let timestamp: u32 = 1000;
-    //     let lamp_data_before = LampData::new();
-    //     let mut lamp_data_after = LampData::new();
-    //     lamp_data_after.timestamp = timestamp + 1;
+    #[test]
+    fn get_device_by_mac_success() -> Result<(), Box<dyn Error>> {
+        let connection = connect_to_dummy_db()?;
+        let mac = String::from("mac");
+        let data_packet = create_data_packet(
+            mac.clone(),
+            "test".to_string(),
+            DeviceType::LampController,
+            None,
+        );
 
-    //     setup_db(&connection)?;
-    //     add_device_to_db(&connection, &device)?;
-    //     add_lamp_data_to_db(&connection, &lamp_data_before, &device)?;
-    //     add_lamp_data_to_db(&connection, &lamp_data_after, &device)?;
+        setup_db(&connection)?;
+        add_data_packet_to_db(&connection, &data_packet)?;
 
-    //     Ok((
-    //         connection,
-    //         device,
-    //         lamp_data_before,
-    //         lamp_data_after,
-    //         timestamp,
-    //     ))
-    // }
+        let res_device = get_device_by_mac(&connection, &mac)?;
+        assert_eq!(res_device.mac, data_packet.device.mac);
 
-    // #[test]
-    // fn get_device_lamp_data_before_success() -> Result<(), Box<dyn Error>> {
-    //     let (connection, device, lamp_data_before, _, timestamp) =
-    //         setup_device_lamp_data_before_and_after()?;
+        Ok(())
+    }
 
-    //     let result = get_device_lamp_data_before(&connection, &device, timestamp)?;
+    fn setup_get_measurements_of_device_until_after(
+    ) -> Result<(Connection, DataPacket, DeviceMeasurments, u32), Box<dyn Error>> {
+        let connection = connect_to_dummy_db()?;
+        let timestamp = 1000;
+        let mut device_measurement = create_device_measurments(timestamp.clone());
+        push_measurement(&mut device_measurement, 5.0, MeasurementType::Illuminance);
 
-    //     assert_eq!(result.len(), 1);
-    //     assert_eq!(result.first().unwrap(), &lamp_data_before);
+        let data_packet = create_data_packet(
+            "123".to_string(),
+            "".to_string(),
+            DeviceType::LampController,
+            Some(&device_measurement),
+        );
 
-    //     Ok(())
-    // }
+        setup_db(&connection)?;
+        add_device_to_db(&connection, &data_packet.device)?;
+        add_device_measurements_to_db(
+            &connection,
+            &data_packet.device_measurements,
+            &data_packet.device,
+        )?;
 
-    // #[test]
-    // fn get_device_lamp_data_after_success() -> Result<(), Box<dyn Error>> {
-    //     let (connection, device, _, lamp_data_after, timestamp) =
-    //         setup_device_lamp_data_before_and_after()?;
+        Ok((connection, data_packet, device_measurement, timestamp))
+    }
 
-    //     let result = get_device_lamp_data_after(&connection, &device, timestamp)?;
+    #[test]
+    fn get_measurements_of_device_until_success() -> Result<(), Box<dyn Error>> {
+        let (connection, data_packet, device_measurement, timestamp) =
+            setup_get_measurements_of_device_until_after()?;
 
-    //     assert_eq!(result.len(), 1);
-    //     assert_eq!(result.first().unwrap(), &lamp_data_after);
+        let result =
+            get_measurements_of_device_until(&connection, &data_packet.device, &timestamp)?;
 
-    //     Ok(())
-    // }
+        assert_eq!(result.len(), 1);
+        assert_eq!(result.first().unwrap(), &device_measurement);
+
+        let result =
+            get_measurements_of_device_until(&connection, &data_packet.device, &(timestamp - 1))?;
+
+        assert!(result.is_empty());
+
+        Ok(())
+    }
+
+    #[test]
+    fn get_measurements_of_device_after_success() -> Result<(), Box<dyn Error>> {
+        let (connection, data_packet, device_measurement, timestamp) =
+            setup_get_measurements_of_device_until_after()?;
+
+        let result =
+            get_measurements_of_device_after(&connection, &data_packet.device, &(timestamp - 1))?;
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result.first().unwrap(), &device_measurement);
+
+        let result =
+            get_measurements_of_device_after(&connection, &data_packet.device, &timestamp)?;
+
+        assert!(result.is_empty());
+
+        Ok(())
+    }
 }
