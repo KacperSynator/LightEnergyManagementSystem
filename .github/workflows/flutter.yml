@@ -15,8 +15,8 @@ jobs:
           channel: 'stable'
 
       - name: Install dependencies
-        run: flutter pub get
+        run: flutter pub get  mobile_app/
       - name: Build 
         run:  |
-            flutter build apk
-            flutter build appbundle
+            flutter build apk mobile_app/
+            flutter build appbundle mobile_app/
