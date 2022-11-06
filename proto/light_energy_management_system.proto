@@ -24,13 +24,19 @@ enum MeasurementType {
     PowerFactor = 7;
 }
 
+enum MeasurementStatus {
+    Invalid = 0;
+    Valid = 1;
+}
+
 message Measurement {
     float value = 1;
     MeasurementType type = 2;
+    MeasurementStatus status = 3;
 }
 
 message DeviceMeasurments {
-    uint32 timestamp = 1;
+    uint64 timestamp = 1;
     repeated Measurement measurements = 2;
 }
 
