@@ -51,27 +51,48 @@ For data serialization [protocal buffers](https://developers.google.com/protocol
 ```proto3
 syntax = "proto3";
 
-package light_energy_menagment_system;
+package light_energy_management_system;
+
+enum DeviceType {
+    UnknownDevice = 0;
+    LampController = 1;
+}
 
 message Device {
     string name = 1;
     string mac = 2;
+    DeviceType type = 3;
 }
 
-message LampData {
-    uint32 timestamp = 3;
-    float illuminance = 4;
+enum MeasurementType {
+    UnknownMeasurment = 0;
+    Illuminance = 1;
+    Voltage = 2;
+    Current = 3;
+    Power = 4;
+    Energy = 5;
+    Frequency = 6;
+    PowerFactor = 7;
+}
 
-    float voltage = 5;
-    float current = 6;
-    float power = 7;
-    float energy = 8;
-    float frequency = 9;
-    float power_factor = 10;
+enum MeasurementStatus {
+    Invalid = 0;
+    Valid = 1;
+}
+
+message Measurement {
+    float value = 1;
+    MeasurementType type = 2;
+    MeasurementStatus status = 3;
+}
+
+message DeviceMeasurments {
+    uint64 timestamp = 1;
+    repeated Measurement measurements = 2;
 }
 
 message DataPacket {
-    Device device = 11;
-    LampData lamp_data = 12;
+    Device device = 1;
+    repeated DeviceMeasurments device_measurements = 2;
 }
 ```
