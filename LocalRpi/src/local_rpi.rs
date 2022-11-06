@@ -93,14 +93,13 @@ fn update_data_packet_timestamp(data_packet: &mut DataPacket) -> Result<(), Box<
         )));
     }
 
-    
     let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
     debug!("Current timestamp: {}", timestamp);
 
     for device_msrt in data_packet.device_measurements.iter_mut() {
-        device_msrt.timestamp = timestamp as u32;
+        device_msrt.timestamp = timestamp;
     }
-    
+
     debug!("Updated data packet: {:?}", data_packet);
     Ok(())
 }
@@ -108,20 +107,29 @@ fn update_data_packet_timestamp(data_packet: &mut DataPacket) -> Result<(), Box<
 #[cfg(test)]
 mod test {
     use super::*;
-    use light_energy_menagment_system::LampData;
-    use protobuf::MessageField;
+    use crate::DeviceMeasurments;
+    use protobuf::{MessageField, SpecialFields};
 
     #[test]
-    fn update_timestamp_some_lamp_data() -> Result<(), Box<dyn Error>> {
+    fn update_timestamp_some_device_measurements() -> Result<(), Box<dyn Error>> {
         let mut data_packet = DataPacket::new();
-        data_packet.lamp_data = MessageField::some(LampData::new());
+        data_packet.device_measurements.push(DeviceMeasurments {
+            timestamp: 0,
+            measurements: Vec::new(),
+            special_fields: SpecialFields::new(),
+        });
+
         update_data_packet_timestamp(&mut data_packet)?;
-        assert_ne!(data_packet.lamp_data.into_option().unwrap().timestamp, 0);
+        assert_ne!(
+            data_packet.device_measurements.first().unwrap().timestamp,
+            0
+        );
+
         Ok(())
     }
 
     #[test]
-    fn update_timestamp_empty_lamp_data() -> Result<(), Box<dyn Error>> {
+    fn update_timestamp_empty_device_measurements() -> Result<(), Box<dyn Error>> {
         let mut data_packet = DataPacket::new();
         if let Err(_) = update_data_packet_timestamp(&mut data_packet) {
             return Ok(());
