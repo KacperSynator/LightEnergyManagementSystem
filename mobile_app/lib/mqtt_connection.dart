@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:mqtt_client/mqtt_client.dart';
 import 'package:mqtt_client/mqtt_server_client.dart';
 
@@ -30,11 +29,11 @@ class MqttConnection {
     return true;
   }
 
-  Future<bool> subscribe(String topic, Function(MqttPublishMessage) callback) async {
+  Future<bool> subscribe(String topic, Function(List<MqttReceivedMessage<MqttMessage>>) callback) async {
     if (!await checkConnection()) {
       return false;
     }
-    _client.published!.listen(callback);
+    _client.updates!.listen(callback);
     return null != _client.subscribe(topic, MqttQos.exactlyOnce);
   }
 
@@ -85,7 +84,7 @@ class MqttConnection {
   }
 
   static void onSubscribed(String topic) {
-    logger.info('MqttConnection: subscribed to topi: $topic');
+    logger.info('MqttConnection: subscribed to topic: $topic');
   }
 
   static void onDisconnected() {

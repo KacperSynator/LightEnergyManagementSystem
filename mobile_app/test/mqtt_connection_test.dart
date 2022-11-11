@@ -12,8 +12,9 @@ void main() {
         keepAlive: 5,
         willMsg: "mobile app test disconnected");
     expect(
-        await mqttConnection.subscribe(topic, (msg) {
-          expect(msg.variableHeader!.topicName, topic);
+        await mqttConnection.subscribe(topic, (msgList) {
+          final msg = msgList[0];
+          expect(msg.topic, topic);
         }),
         true);
     expect(await mqttConnection.publish(topic, payload), true);

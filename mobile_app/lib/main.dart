@@ -1,31 +1,29 @@
 import 'package:flutter/material.dart';
 
-import 'mqtt_connection.dart';
 import 'utils.dart';
+import 'mobile_app.dart';
 
-void main() async {
+void main() {
   initLogger();
-  final mqttConnection = MqttConnection(
-      host: "test.mosquitto.org",
-      clientId: "mobile_app",
-      willMsg: "disconnected",
-      keepAlive: 30);
-  await mqttConnection.publish("mobile_app", "hello");
-  await mqttConnection.subscribe(
-      "mobile_app/#",
-      (message) => logger.info(
-          "MqttConnection: received msg: topiC: ${message.variableHeader!.topicName}\n\t ${message.payload}"));
-  runApp(MobileApp());
+  runApp(MobileAppUi());
 }
 
-class MobileApp extends StatefulWidget {
+class MobileAppUi extends StatefulWidget {
   @override
-  State<MobileApp> createState() => _MobileAppState();
+  State<MobileAppUi> createState() => _MobileAppUiState();
 }
 
-class _MobileAppState extends State<MobileApp> {
+class _MobileAppUiState extends State<MobileAppUi> {
+  final mobileApp = MobileApp();
+
   @override
-  Widget build(BuildContext constext) {
+  void initState() {
+    mobileApp.init();
+    super.initState();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return MaterialApp(
       home: Scaffold(
         appBar: AppBar(
