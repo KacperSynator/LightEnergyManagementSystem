@@ -1,6 +1,7 @@
 use crate::db_handler;
 use crate::mqtt_connection;
 use crate::DataPacket;
+use crate::Device;
 use crate::Devices;
 use crate::MqttCommand;
 use crate::MqttPayload;
@@ -8,7 +9,7 @@ use crate::MqttPayload;
 use db_handler::DBHandler;
 use log::{debug, info, warn};
 use mqtt_connection::MqttConnection;
-use protobuf::{EnumOrUnknown, Message, SpecialFields};
+use protobuf::{EnumOrUnknown, Message, MessageField, SpecialFields};
 use std::error::Error;
 use std::fmt;
 
@@ -79,11 +80,20 @@ impl ServerRpi {
         let (_, sender_id) = parse_topic(&msg.topic);
 
         match mqtt_payload.command.enum_value_or_default() {
-            MqttCommand::GetAllDevices => unsafe {
+            MqttCommand::GetAllDevices => {
                 get_and_send_devices(&sender_id, &self.db_handler, &self.mqtt_conn).await?
-            },
+            }
             MqttCommand::HandleDataPacket => {
                 parse_and_insert_data_packet(&msg.payload, &self.db_handler)?
+            }
+            MqttCommand::GetDeviceMeasurements => {
+                get_and_send_device_measurements(
+                    &sender_id,
+                    &mqtt_payload.msg,
+                    &self.db_handler,
+                    &self.mqtt_conn,
+                )
+                .await?
             }
             _ => warn!("Unknown topic: {}", msg.topic),
         };
@@ -114,7 +124,7 @@ fn parse_and_insert_data_packet(
     Ok(())
 }
 
-async unsafe fn get_and_send_devices(
+async fn get_and_send_devices(
     sender_id: &String,
     db_handler: &DBHandler,
     mqtt_conn: &MqttConnection,
@@ -124,15 +134,56 @@ async unsafe fn get_and_send_devices(
         special_fields: SpecialFields::new(),
     };
 
-    let msg = String::from_utf8_unchecked(devices.write_to_bytes()?);
-    let payload = MqttPayload {
+    let mqtt_payload = MqttPayload {
         command: EnumOrUnknown::new(MqttCommand::GetAllDevices),
-        msg,
+        msg: devices.write_to_bytes()?,
         special_fields: SpecialFields::new(),
     };
+
+    send_mqtt_payload(sender_id, &mqtt_payload, mqtt_conn).await?;
+
+    Ok(())
+}
+
+async fn get_and_send_device_measurements(
+    sender_id: &String,
+    device: &Vec<u8>,
+    db_handler: &DBHandler,
+    mqtt_conn: &MqttConnection,
+) -> Result<(), Box<dyn Error>> {
+    let device = Device::parse_from_bytes(device)?;
+    let device_measurements = db_handler.get_all_measurements_of_device(&device)?;
+    let data_packet = DataPacket {
+        device: MessageField::some(device),
+        device_measurements,
+        special_fields: SpecialFields::new(),
+    };
+
+    let mqtt_payload = MqttPayload {
+        command: EnumOrUnknown::new(MqttCommand::GetDeviceMeasurements),
+        msg: data_packet.write_to_bytes()?,
+        special_fields: SpecialFields::new(),
+    };
+
+    send_mqtt_payload(sender_id, &mqtt_payload, mqtt_conn).await?;
+
+    Ok(())
+}
+
+async fn send_mqtt_payload(
+    sender_id: &String,
+    mqtt_payload: &MqttPayload,
+    mqtt_conn: &MqttConnection,
+) -> Result<(), Box<dyn Error>> {
+    let payload;
+
+    unsafe {
+        payload = String::from_utf8_unchecked(mqtt_payload.write_to_bytes()?);
+    }
+
     let topic = create_publish_topic(sender_id);
 
-    mqtt_conn.publish(topic, payload.to_string()).await?;
+    mqtt_conn.publish(topic, payload).await?;
 
     Ok(())
 }
