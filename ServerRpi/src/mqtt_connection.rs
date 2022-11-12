@@ -1,5 +1,5 @@
 use log::{debug, info};
-use rumqttc::{AsyncClient, EventLoop, LastWill, MqttOptions, QoS, Event, Packet, Publish};
+use rumqttc::{AsyncClient, Event, EventLoop, LastWill, MqttOptions, Packet, Publish, QoS};
 use std::error::Error;
 use std::time::Duration;
 
@@ -32,7 +32,9 @@ impl MqttConnection {
 
     pub async fn publish(&self, topic: String, payload: String) -> Result<(), Box<dyn Error>> {
         debug!("Topic: {}/n/tPayload: {}", topic, payload);
-        self.client.publish(topic, QoS::ExactlyOnce, false, payload).await?;
+        self.client
+            .publish(topic, QoS::ExactlyOnce, false, payload)
+            .await?;
 
         info!("Published msg");
 
@@ -55,7 +57,7 @@ impl MqttConnection {
                 return Ok(Some(msg));
             }
         }
-        
+
         Ok(None)
     }
 }

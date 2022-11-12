@@ -1,7 +1,7 @@
 use crate::proto_utils::{device_type_utils, measurement_status_utils, measurement_type_utils};
 use crate::DataPacket;
 use crate::Device;
-use crate::DeviceMeasurments;
+use crate::DeviceMeasurements;
 use crate::Measurement;
 use crate::MeasurementType;
 
@@ -55,7 +55,7 @@ impl DBHandler {
         &self,
         device: &Device,
         timestamp: &u64,
-    ) -> Result<Vec<DeviceMeasurments>, Box<dyn Error>> {
+    ) -> Result<Vec<DeviceMeasurements>, Box<dyn Error>> {
         get_measurements_of_device_after(&self.connection, device, timestamp)
     }
 
@@ -63,14 +63,14 @@ impl DBHandler {
         &self,
         device: &Device,
         timestamp: &u64,
-    ) -> Result<Vec<DeviceMeasurments>, Box<dyn Error>> {
+    ) -> Result<Vec<DeviceMeasurements>, Box<dyn Error>> {
         get_measurements_of_device_until(&self.connection, device, timestamp)
     }
 
     pub fn get_all_measurements_of_device(
         &self,
         device: &Device,
-    ) -> Result<Vec<DeviceMeasurments>, Box<dyn Error>> {
+    ) -> Result<Vec<DeviceMeasurements>, Box<dyn Error>> {
         get_all_measurements_of_device(&self.connection, device)
     }
 }
@@ -163,7 +163,7 @@ fn add_device_to_db(connection: &Connection, device: &Device) -> Result<(), Box<
 
 fn add_device_measurements_to_db(
     connection: &Connection,
-    device_measurements: &Vec<DeviceMeasurments>,
+    device_measurements: &Vec<DeviceMeasurements>,
     device: &Device,
 ) -> Result<(), Box<dyn Error>> {
     let device_id = get_device_id(connection, device)?;
@@ -303,7 +303,7 @@ fn get_all_devices_from_db(connection: &Connection) -> Result<Vec<Device>, Box<d
 fn get_all_measurements_of_device(
     connection: &Connection,
     device: &Device,
-) -> Result<Vec<DeviceMeasurments>, Box<dyn Error>> {
+) -> Result<Vec<DeviceMeasurements>, Box<dyn Error>> {
     get_measurements_of_device_after(connection, device, &u64::MIN)
 }
 
@@ -311,7 +311,7 @@ fn get_measurements_of_device_until(
     connection: &Connection,
     device: &Device,
     timestamp: &u64,
-) -> Result<Vec<DeviceMeasurments>, Box<dyn Error>> {
+) -> Result<Vec<DeviceMeasurements>, Box<dyn Error>> {
     let measurements_after = get_measurements_of_device_after(connection, device, timestamp)?;
     let mut all_measurements_reversed = get_all_measurements_of_device(connection, device)?;
     all_measurements_reversed.reverse();
@@ -326,7 +326,7 @@ fn get_measurements_of_device_after(
     connection: &Connection,
     device: &Device,
     timestamp: &u64,
-) -> Result<Vec<DeviceMeasurments>, Box<dyn Error>> {
+) -> Result<Vec<DeviceMeasurements>, Box<dyn Error>> {
     let mut stmt = connection.prepare(
         "SELECT 
             Channels.name,
@@ -364,7 +364,7 @@ fn get_measurements_of_device_after(
 
     Ok(timestamp_measurements
         .drain()
-        .map(|(timestamp, measurements)| DeviceMeasurments {
+        .map(|(timestamp, measurements)| DeviceMeasurements {
             timestamp,
             measurements,
             special_fields: SpecialFields::new(),
@@ -445,7 +445,7 @@ mod test {
         device_mac: String,
         device_name: String,
         device_type: DeviceType,
-        device_measurements: Option<&DeviceMeasurments>,
+        device_measurements: Option<&DeviceMeasurements>,
     ) -> DataPacket {
         let device_measurements = if device_measurements.is_none() {
             Vec::new()
@@ -464,8 +464,8 @@ mod test {
         }
     }
 
-    fn create_device_measurments(timestamp: u64) -> DeviceMeasurments {
-        DeviceMeasurments {
+    fn create_device_measurments(timestamp: u64) -> DeviceMeasurements {
+        DeviceMeasurements {
             timestamp,
             measurements: Vec::new(),
             special_fields: SpecialFields::new(),
@@ -473,7 +473,7 @@ mod test {
     }
 
     fn push_measurement(
-        device_measurments: &mut DeviceMeasurments,
+        device_measurments: &mut DeviceMeasurements,
         value: f32,
         measurement_type: MeasurementType,
         status: MeasurementStatus,
@@ -559,7 +559,7 @@ mod test {
     }
 
     fn setup_get_measurements_of_device_until_after(
-    ) -> Result<(Connection, DataPacket, DeviceMeasurments, u64), Box<dyn Error>> {
+    ) -> Result<(Connection, DataPacket, DeviceMeasurements, u64), Box<dyn Error>> {
         let connection = connect_to_dummy_db()?;
         let timestamp = 1000;
         let mut device_measurement = create_device_measurments(timestamp.clone());

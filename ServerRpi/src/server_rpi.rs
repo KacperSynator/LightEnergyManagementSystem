@@ -1,11 +1,14 @@
 use crate::db_handler;
 use crate::mqtt_connection;
 use crate::DataPacket;
+use crate::Devices;
+use crate::MqttCommand;
+use crate::MqttPayload;
 
 use db_handler::DBHandler;
 use log::{debug, info, warn};
 use mqtt_connection::MqttConnection;
-use protobuf::Message;
+use protobuf::{EnumOrUnknown, Message, SpecialFields};
 use std::error::Error;
 use std::fmt;
 
@@ -16,7 +19,6 @@ const KEEP_ALIVE_TIME: u64 = 30;
 const WILL_TOPIC: &str = "u/will";
 const WILL_MSG: &str = "ServerRpi disconnected";
 const MSG_BUF_SIZE: usize = 10;
-const PUB_TOPIC: &str = "d/data_packet";
 const SUB_TOPIC: &str = "u/#";
 
 #[derive(Debug)]
@@ -51,12 +53,6 @@ impl ServerRpi {
         })
     }
 
-    pub async fn send_msg(&self, msg: String) -> Result<(), Box<dyn Error>> {
-        self.mqtt_conn.publish(PUB_TOPIC.to_string(), msg).await?;
-
-        Ok(())
-    }
-
     pub async fn subscribe(&self) -> Result<(), Box<dyn Error>> {
         self.mqtt_conn.subscribe(SUB_TOPIC.to_string()).await?;
 
@@ -75,24 +71,81 @@ impl ServerRpi {
 
         info!(
             "Message arrived with topic: {:?}\n\tPayload: {:?}",
-            msg.topic,
-            msg.payload
+            msg.topic, msg.payload
         );
 
-        let parsed_msg = DataPacket::parse_from_bytes(&msg.payload);
+        let mqtt_payload = MqttPayload::parse_from_bytes(&msg.payload)?;
 
-        if parsed_msg.is_err() {
-            return Err(Box::new(ServerRpiError(
-                "Failed to parse msg payload".into(),
-            )));
-        }
+        let (_, sender_id) = parse_topic(&msg.topic);
 
-        self.db_handler.insert_data_packet(&parsed_msg.unwrap())?;
+        match mqtt_payload.command.enum_value_or_default() {
+            MqttCommand::GetAllDevices => unsafe {
+                get_and_send_devices(&sender_id, &self.db_handler, &self.mqtt_conn).await?
+            },
+            MqttCommand::HandleDataPacket => {
+                parse_and_insert_data_packet(&msg.payload, &self.db_handler)?
+            }
+            _ => warn!("Unknown topic: {}", msg.topic),
+        };
 
-        debug!(
-            "Parsed msg data_packet: {:?}",
-            DataPacket::parse_from_bytes(&msg.payload).unwrap_or_default()
-        );
         Ok(())
+    }
+}
+
+fn parse_and_insert_data_packet(
+    payload: &[u8],
+    db_handler: &DBHandler,
+) -> Result<(), Box<dyn Error>> {
+    let parsed_msg = DataPacket::parse_from_bytes(payload);
+
+    if parsed_msg.is_err() {
+        return Err(Box::new(ServerRpiError(
+            "Failed to parse msg payload".into(),
+        )));
+    }
+
+    db_handler.insert_data_packet(&parsed_msg.unwrap())?;
+
+    debug!(
+        "Parsed msg data_packet: {:?}",
+        DataPacket::parse_from_bytes(payload).unwrap_or_default()
+    );
+
+    Ok(())
+}
+
+async unsafe fn get_and_send_devices(
+    sender_id: &String,
+    db_handler: &DBHandler,
+    mqtt_conn: &MqttConnection,
+) -> Result<(), Box<dyn Error>> {
+    let devices = Devices {
+        devices: db_handler.get_all_devices()?,
+        special_fields: SpecialFields::new(),
+    };
+
+    let msg = String::from_utf8_unchecked(devices.write_to_bytes()?);
+    let payload = MqttPayload {
+        command: EnumOrUnknown::new(MqttCommand::GetAllDevices),
+        msg,
+        special_fields: SpecialFields::new(),
+    };
+    let topic = create_publish_topic(sender_id);
+
+    mqtt_conn.publish(topic, payload.to_string()).await?;
+
+    Ok(())
+}
+
+fn create_publish_topic(id: &String) -> String {
+    format!("d/{id}")
+}
+
+fn parse_topic(topic: &str) -> (String, String) {
+    let vec: Vec<String> = topic.split('/').map(|str| str.to_string()).collect();
+
+    match &vec[..] {
+        [direction, sender_id, ..] => (direction.to_string(), sender_id.to_string()),
+        _ => unreachable!(),
     }
 }
