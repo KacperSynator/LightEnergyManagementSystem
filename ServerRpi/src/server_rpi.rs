@@ -2,12 +2,13 @@ use crate::db_handler;
 use crate::mqtt_connection;
 use crate::DataPacket;
 use crate::Device;
+use crate::DeviceMeasurements;
 use crate::Devices;
 use crate::MqttCommand;
 use crate::MqttPayload;
 
 use db_handler::DBHandler;
-use log::{debug, info, warn};
+use log::{debug, error, info, warn};
 use mqtt_connection::MqttConnection;
 use protobuf::{EnumOrUnknown, Message, MessageField, SpecialFields};
 use std::error::Error;
@@ -95,8 +96,24 @@ impl ServerRpi {
                 )
                 .await?
             }
-            MqttCommand::GetDeviceMeasurementsAfter => {} // TODO
-            MqttCommand::GetDeviceMeasurementsBefore => {} // TODO
+            MqttCommand::GetDeviceMeasurementsAfter => {
+                get_and_send_device_measurements_after(
+                    &sender_id,
+                    &mqtt_payload.msg,
+                    &self.db_handler,
+                    &self.mqtt_conn,
+                )
+                .await?
+            }
+            MqttCommand::GetDeviceMeasurementsBefore => {
+                get_and_send_device_measurements_before(
+                    &sender_id,
+                    &mqtt_payload.msg,
+                    &self.db_handler,
+                    &self.mqtt_conn,
+                )
+                .await?
+            }
             MqttCommand::ChangeDeviceName => {
                 change_device_name(
                     &sender_id,
@@ -114,10 +131,17 @@ impl ServerRpi {
 }
 
 fn parse_and_insert_data_packet(
-    payload: &Vec<u8>,
+    payload: &Vec<Vec<u8>>,
     db_handler: &DBHandler,
 ) -> Result<(), Box<dyn Error>> {
-    let parsed_msg = DataPacket::parse_from_bytes(payload);
+    if payload.is_empty() {
+        error!("payload is empty, should be of length 1");
+        return Err(Box::new(ServerRpiError(
+            "payload is empty, should be of length 1".into(),
+        )));
+    }
+
+    let parsed_msg = DataPacket::parse_from_bytes(&payload[0]);
 
     if parsed_msg.is_err() {
         return Err(Box::new(ServerRpiError(
@@ -129,7 +153,7 @@ fn parse_and_insert_data_packet(
 
     debug!(
         "Parsed msg data_packet: {:?}",
-        DataPacket::parse_from_bytes(payload).unwrap_or_default()
+        DataPacket::parse_from_bytes(&payload[0]).unwrap_or_default()
     );
 
     Ok(())
@@ -147,32 +171,7 @@ async fn get_and_send_devices(
 
     let mqtt_payload = MqttPayload {
         command: EnumOrUnknown::new(MqttCommand::GetAllDevices),
-        msg: devices.write_to_bytes()?,
-        special_fields: SpecialFields::new(),
-    };
-
-    send_mqtt_payload(sender_id, &mqtt_payload, mqtt_conn).await?;
-
-    Ok(())
-}
-
-async fn get_and_send_device_measurements(
-    sender_id: &String,
-    payload: &Vec<u8>,
-    db_handler: &DBHandler,
-    mqtt_conn: &MqttConnection,
-) -> Result<(), Box<dyn Error>> {
-    let device = Device::parse_from_bytes(payload)?;
-    let device_measurements = db_handler.get_all_measurements_of_device(&device)?;
-    let data_packet = DataPacket {
-        device: MessageField::some(device),
-        device_measurements,
-        special_fields: SpecialFields::new(),
-    };
-
-    let mqtt_payload = MqttPayload {
-        command: EnumOrUnknown::new(MqttCommand::GetDeviceMeasurements),
-        msg: data_packet.write_to_bytes()?,
+        msg: vec![devices.write_to_bytes()?],
         special_fields: SpecialFields::new(),
     };
 
@@ -183,11 +182,18 @@ async fn get_and_send_device_measurements(
 
 async fn change_device_name(
     sender_id: &String,
-    payload: &Vec<u8>,
+    payload: &Vec<Vec<u8>>,
     db_handler: &DBHandler,
     mqtt_conn: &MqttConnection,
 ) -> Result<(), Box<dyn Error>> {
-    let device = Device::parse_from_bytes(payload)?;
+    if payload.is_empty() {
+        error!("payload is empty, should be of length 1");
+        return Err(Box::new(ServerRpiError(
+            "payload is empty, should be of length 1".into(),
+        )));
+    }
+
+    let device = Device::parse_from_bytes(&payload[0])?;
 
     let msg;
 
@@ -199,13 +205,116 @@ async fn change_device_name(
 
     let mqtt_payload = MqttPayload {
         command: EnumOrUnknown::new(MqttCommand::ChangeDeviceName),
-        msg: msg.as_bytes().to_vec(),
+        msg: vec![msg.as_bytes().to_vec()],
         special_fields: SpecialFields::new(),
     };
 
     send_mqtt_payload(sender_id, &mqtt_payload, mqtt_conn).await?;
 
     Ok(())
+}
+
+async fn get_and_send_device_measurements(
+    sender_id: &String,
+    payload: &Vec<Vec<u8>>,
+    db_handler: &DBHandler,
+    mqtt_conn: &MqttConnection,
+) -> Result<(), Box<dyn Error>> {
+    if payload.is_empty() {
+        error!("payload is empty, should be of length 1");
+        return Err(Box::new(ServerRpiError(
+            "payload is empty, should be of length 1".into(),
+        )));
+    }
+
+    let device = Device::parse_from_bytes(&payload[0])?;
+    let device_measurements = db_handler.get_all_measurements_of_device(&device)?;
+    let data_packet = DataPacket {
+        device: MessageField::some(device),
+        device_measurements,
+        special_fields: SpecialFields::new(),
+    };
+
+    let mqtt_payload = MqttPayload {
+        command: EnumOrUnknown::new(MqttCommand::GetDeviceMeasurements),
+        msg: vec![data_packet.write_to_bytes()?],
+        special_fields: SpecialFields::new(),
+    };
+
+    send_mqtt_payload(sender_id, &mqtt_payload, mqtt_conn).await?;
+
+    Ok(())
+}
+
+async fn get_and_send_device_measurements_after(
+    sender_id: &String,
+    payload: &Vec<Vec<u8>>,
+    db_handler: &DBHandler,
+    mqtt_conn: &MqttConnection,
+) -> Result<(), Box<dyn Error>> {
+    let (device, timestamp) = parse_payload_with_timestamp(payload)?;
+
+    let device_measurements = db_handler.get_measurements_of_device_after(&device, &timestamp)?;
+
+    let mqtt_payload = create_mqtt_payload_containing_data_packet(device, device_measurements)?;
+
+    send_mqtt_payload(sender_id, &mqtt_payload, mqtt_conn).await?;
+
+    Ok(())
+}
+
+async fn get_and_send_device_measurements_before(
+    sender_id: &String,
+    payload: &Vec<Vec<u8>>,
+    db_handler: &DBHandler,
+    mqtt_conn: &MqttConnection,
+) -> Result<(), Box<dyn Error>> {
+    let (device, timestamp) = parse_payload_with_timestamp(payload)?;
+
+    let device_measurements = db_handler.get_measurements_of_device_until(&device, &timestamp)?;
+
+    let mqtt_payload = create_mqtt_payload_containing_data_packet(device, device_measurements)?;
+
+    send_mqtt_payload(sender_id, &mqtt_payload, mqtt_conn).await?;
+
+    Ok(())
+}
+
+fn parse_payload_with_timestamp(payload: &Vec<Vec<u8>>) -> Result<(Device, u64), Box<dyn Error>> {
+    if payload.len() != 2 {
+        error!("payload is empty, should be of length 1");
+        return Err(Box::new(ServerRpiError(
+            "payload is empty, should be of length 1".into(),
+        )));
+    }
+
+    let device = Device::parse_from_bytes(&payload[0])?;
+    let timestamp = u64::from_le_bytes(payload[1][0..8].try_into().unwrap_or_default());
+    if timestamp == 0 {
+        error!("timestamp is 0 probably parse from bytes failed");
+        return Err(Box::new(ServerRpiError(
+            "timestamp is 0 probably parse from bytes failed".into(),
+        )));
+    }
+
+    Ok((device, timestamp))
+}
+
+fn create_mqtt_payload_containing_data_packet(
+    device: Device,
+    device_measurements: Vec<DeviceMeasurements>,
+) -> Result<MqttPayload, Box<dyn Error>> {
+    let data_packet = DataPacket {
+        device: MessageField::some(device),
+        device_measurements,
+        special_fields: SpecialFields::new(),
+    };
+
+    Ok(MqttPayload {
+        command: EnumOrUnknown::new(MqttCommand::GetDeviceMeasurementsAfter),
+        msg: vec![data_packet.write_to_bytes()?],
+        special_fields: SpecialFields::new(),
+    })
 }
 
 async fn send_mqtt_payload(
