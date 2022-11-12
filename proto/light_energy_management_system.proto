@@ -14,7 +14,7 @@ enum MqttCommand {
 
 message MqttPayload {
     MqttCommand command = 1;
-    string msg = 2;
+    bytes msg = 2;
 }
 
 enum DeviceType {
