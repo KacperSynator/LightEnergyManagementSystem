@@ -9,13 +9,15 @@ use protobuf::Message;
 use std::error::Error;
 use std::fmt;
 
-const HOST: &str = "tcp://127.0.0.1:1883";
+const HOST: &str = "localhost";
+const PORT: u16 = 1883;
 const CLIENT_ID: &str = "ServerRpi";
 const KEEP_ALIVE_TIME: u64 = 30;
+const WILL_TOPIC: &str = "u/will";
 const WILL_MSG: &str = "ServerRpi disconnected";
-const MSG_BUF_SIZE: usize = 25;
+const MSG_BUF_SIZE: usize = 10;
 const PUB_TOPIC: &str = "d/data_packet";
-const SUB_TOPIC: &str = "u/data_packet";
+const SUB_TOPIC: &str = "u/#";
 
 #[derive(Debug)]
 struct ServerRpiError(String);
@@ -39,7 +41,9 @@ impl ServerRpi {
             mqtt_conn: MqttConnection::new(
                 HOST.to_string(),
                 CLIENT_ID.to_string(),
+                PORT,
                 KEEP_ALIVE_TIME,
+                WILL_TOPIC.to_string(),
                 WILL_MSG.to_string(),
                 MSG_BUF_SIZE,
             )?,
@@ -71,11 +75,11 @@ impl ServerRpi {
 
         info!(
             "Message arrived with topic: {:?}\n\tPayload: {:?}",
-            msg.topic(),
-            msg.payload_str()
+            msg.topic,
+            msg.payload
         );
 
-        let parsed_msg = DataPacket::parse_from_bytes(msg.payload());
+        let parsed_msg = DataPacket::parse_from_bytes(&msg.payload);
 
         if parsed_msg.is_err() {
             return Err(Box::new(ServerRpiError(
@@ -87,7 +91,7 @@ impl ServerRpi {
 
         debug!(
             "Parsed msg data_packet: {:?}",
-            DataPacket::parse_from_bytes(msg.payload()).unwrap_or_default()
+            DataPacket::parse_from_bytes(&msg.payload).unwrap_or_default()
         );
         Ok(())
     }

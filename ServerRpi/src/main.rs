@@ -1,6 +1,8 @@
 use log::{error, info};
 use std::error::Error;
 use ServerRpi::server_rpi::ServerRpi;
+use std::thread::sleep;
+use std::time::Duration;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -21,12 +23,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     loop {
-        if let Err(e) = server_rpi.send_msg("test".to_string()).await {
-            error!("ServerRpi failed to send msg: {:?}", e);
-        }
+        // if let Err(e) = server_rpi.send_msg("test".to_string()).await {
+        //     error!("ServerRpi failed to send msg: {:?}", e);
+        // }
 
         if let Err(e) = server_rpi.read_next_msg().await {
             error!("ServerRpi failed to read next message: {:?}", e);
         }
+
+        sleep(Duration::from_millis(100));
     }
 }

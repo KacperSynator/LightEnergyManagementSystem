@@ -1,39 +1,38 @@
-use futures_util::StreamExt;
 use log::{debug, info};
-use paho_mqtt as mqtt;
+use rumqttc::{AsyncClient, EventLoop, LastWill, MqttOptions, QoS, Event, Packet, Publish};
 use std::error::Error;
 use std::time::Duration;
 
 pub struct MqttConnection {
-    client: mqtt::AsyncClient,
-    msg_stream: mqtt::AsyncReceiver<Option<mqtt::Message>>,
-    keep_alive_time: u64,
-    will_msg: String,
+    client: AsyncClient,
+    event_loop: EventLoop,
 }
 
 impl MqttConnection {
     pub fn new(
         host: String,
         client_id: String,
+        port: u16,
         keep_alive_time: u64,
+        will_topic: String,
         will_msg: String,
         msg_buf_size: usize,
     ) -> Result<Self, Box<dyn Error>> {
-        let mut client = mqtt::AsyncClient::new(create_client_options(host, client_id))?;
-        let msg_stream = client.get_stream(msg_buf_size);
-        Ok(Self {
-            client,
-            msg_stream,
+        let (client, event_loop) = create_client_and_event_loop(
+            host,
+            client_id,
+            port,
             keep_alive_time,
+            msg_buf_size,
+            will_topic,
             will_msg,
-        })
+        );
+        Ok(Self { client, event_loop })
     }
 
     pub async fn publish(&self, topic: String, payload: String) -> Result<(), Box<dyn Error>> {
         debug!("Topic: {}/n/tPayload: {}", topic, payload);
-        let msg = mqtt::Message::new(topic.clone(), payload, mqtt::QOS_1);
-        self.check_connection(topic).await?;
-        self.client.publish(msg).await?;
+        self.client.publish(topic, QoS::ExactlyOnce, false, payload).await?;
 
         info!("Published msg");
 
@@ -41,94 +40,51 @@ impl MqttConnection {
     }
 
     pub async fn subscribe(&self, topic: String) -> Result<(), Box<dyn Error>> {
-        self.check_connection(topic.clone()).await?;
-        self.client.subscribe(topic, mqtt::QOS_1).await?;
+        self.client.subscribe(topic, QoS::ExactlyOnce).await?;
 
         info!("Subscribed");
 
         Ok(())
     }
 
-    pub async fn get_msg(&mut self) -> Result<Option<mqtt::Message>, Box<dyn Error>> {
-        Ok(self.msg_stream.next().await.unwrap_or_default())
-    }
-
-    async fn connect(&self, topic: String) -> Result<(), Box<dyn Error>> {
-        connect(
-            self.client.clone(),
-            topic,
-            self.keep_alive_time,
-            self.will_msg.clone(),
-        )
-        .await?;
-
-        Ok(())
-    }
-
-    async fn disconnect(&self) -> Result<(), Box<dyn Error>> {
-        self.client.disconnect(None).await?;
-
-        Ok(())
-    }
-
-    async fn check_connection(&self, topic: String) -> Result<(), Box<dyn Error>> {
-        debug!("Connected: {}", self.client.is_connected());
-
-        if !self.client.is_connected() {
-            self.connect(topic).await?;
+    pub async fn get_msg(&mut self) -> Result<Option<Publish>, Box<dyn Error>> {
+        let notification = self.event_loop.poll().await?;
+        debug!("notification: {:?}", notification);
+        if let Event::Incoming(packet) = notification {
+            if let Packet::Publish(msg) = packet {
+                return Ok(Some(msg));
+            }
         }
-
-        Ok(())
+        
+        Ok(None)
     }
 }
 
-fn create_client_options(host: String, id: String) -> mqtt::CreateOptions {
-    mqtt::CreateOptionsBuilder::new()
-        .server_uri(host)
-        .client_id(id)
-        .finalize()
-}
-
-async fn connect(
-    client: mqtt::AsyncClient,
-    topic: String,
+fn create_client_and_event_loop(
+    host: String,
+    id: String,
+    port: u16,
     keep_alive_time: u64,
+    msg_buf_size: usize,
+    will_topic: String,
     will_msg: String,
-) -> Result<(), Box<dyn Error>> {
-    client
-        .connect(create_connection_options(
-            keep_alive_time,
-            topic,
-            will_msg,
-            false,
-        ))
-        .await?;
+) -> (AsyncClient, EventLoop) {
+    let mut options = MqttOptions::new(id, host, port);
+    options.set_keep_alive(Duration::from_secs(keep_alive_time));
+    options.set_last_will(LastWill::new(will_topic, will_msg, QoS::ExactlyOnce, false));
 
-    Ok(())
-}
-
-fn create_connection_options(
-    keep_alive_t: u64,
-    topic: String,
-    will_msg: String,
-    clean_session: bool,
-) -> mqtt::ConnectOptions {
-    let will_msg = mqtt::Message::new(topic, will_msg, mqtt::QOS_1);
-    mqtt::ConnectOptionsBuilder::new()
-        .keep_alive_interval(Duration::from_secs(keep_alive_t))
-        .mqtt_version(mqtt::MQTT_VERSION_3_1_1)
-        .clean_session(clean_session)
-        .will_message(will_msg)
-        .finalize()
+    AsyncClient::new(options, msg_buf_size)
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
 
-    const TEST_HOST: &str = "tcp://127.0.0.1:1883";
+    const TEST_HOST: &str = "127.0.0.1";
+    const PORT: u16 = 1883;
     const TEST_CLIENT_ID: &str = "TestServerRpi";
     const TEST_KEEP_ALIVE_TIME: u64 = 5;
+    const TEST_WILL_TOPIC: &str = "test";
     const TEST_WILL_MSG: &str = "Test ServerRpi disconnected";
     const TEST_PUB_TOPIC: &str = "test";
     const TEST_PUB_PAYLOAD: &str = "hello_from_test";
@@ -140,7 +96,9 @@ mod test {
         let mut mqtt_conn = MqttConnection::new(
             TEST_HOST.to_string(),
             TEST_CLIENT_ID.to_string(),
+            PORT,
             TEST_KEEP_ALIVE_TIME,
+            TEST_WILL_TOPIC.to_string(),
             TEST_WILL_MSG.to_string(),
             TEST_MSG_BUF_SIZE,
         )?;
@@ -150,11 +108,10 @@ mod test {
             .await?;
         let msg = mqtt_conn.get_msg().await?;
         if let Some(msg) = msg {
-            assert_eq!(msg.topic(), TEST_PUB_TOPIC);
-            assert_eq!(msg.payload_str(), TEST_PUB_PAYLOAD);
+            assert_eq!(msg.topic, TEST_PUB_TOPIC);
+            assert_eq!(&msg.payload, TEST_PUB_PAYLOAD);
         };
 
-        mqtt_conn.disconnect().await?;
         Ok(())
     }
 }

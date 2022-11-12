@@ -14,7 +14,7 @@ tokio = { version = "1.21.1", features = ["full"] }
 tokio-stream = { version = "0.1.10", features = ["sync"] }
 protobuf = "3"
 rusqlite = { version = "0.28.0", features = ["bundled"] }
-paho-mqtt = "0.11.1"
+rumqttc = "0.17.0"
 
 [build-dependencies]
 protobuf-codegen = "3"
