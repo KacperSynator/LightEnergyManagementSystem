@@ -52,10 +52,8 @@ impl MqttConnection {
     pub async fn get_msg(&mut self) -> Result<Option<Publish>, Box<dyn Error>> {
         let notification = self.event_loop.poll().await?;
         debug!("notification: {:?}", notification);
-        if let Event::Incoming(packet) = notification {
-            if let Packet::Publish(msg) = packet {
-                return Ok(Some(msg));
-            }
+        if let Event::Incoming(Packet::Publish(msg)) = notification {
+            return Ok(Some(msg));
         }
 
         Ok(None)

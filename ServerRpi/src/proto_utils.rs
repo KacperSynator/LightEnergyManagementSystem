@@ -13,8 +13,8 @@ pub mod device_type_utils {
         })
     }
 
-    pub fn from_string(string: &String) -> DeviceType {
-        match string.as_str() {
+    pub fn from_string(string: &str) -> DeviceType {
+        match string {
             LAMP_CONTROLLER => LampController,
             _ => UnknownDevice,
         }
@@ -48,8 +48,8 @@ pub mod measurement_type_utils {
         })
     }
 
-    pub fn from_string(string: &String) -> MeasurementType {
-        match string.as_str() {
+    pub fn from_string(string: &str) -> MeasurementType {
+        match string {
             ILLUMINANCE => Illuminance,
             VOLTAGE => Voltage,
             CURRENT => Current,
@@ -77,8 +77,8 @@ pub mod measurement_status_utils {
         })
     }
 
-    pub fn from_string(string: &String) -> MeasurementStatus {
-        match string.as_str() {
+    pub fn from_string(string: &str) -> MeasurementStatus {
+        match string {
             VALID => Valid,
             _ => Invalid,
         }

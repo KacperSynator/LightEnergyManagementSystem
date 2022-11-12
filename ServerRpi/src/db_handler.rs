@@ -47,9 +47,9 @@ impl DBHandler {
         get_all_devices_from_db(&self.connection)
     }
 
-    pub fn get_device_by_mac(&self, mac: &String) -> Result<Device, Box<dyn Error>> {
-        get_device_by_mac(&self.connection, mac)
-    }
+    // pub fn get_device_by_mac(&self, mac: &String) -> Result<Device, Box<dyn Error>> {
+    //     get_device_by_mac(&self.connection, mac)
+    // }
 
     pub fn get_measurements_of_device_after(
         &self,
@@ -167,7 +167,7 @@ fn add_device_to_db(connection: &Connection, device: &Device) -> Result<(), Box<
 
 fn add_device_measurements_to_db(
     connection: &Connection,
-    device_measurements: &Vec<DeviceMeasurements>,
+    device_measurements: &[DeviceMeasurements],
     device: &Device,
 ) -> Result<(), Box<dyn Error>> {
     let device_id = get_device_id(connection, device)?;
@@ -239,22 +239,22 @@ fn add_channel_to_db(
     Ok(())
 }
 
-fn get_device_by_mac(connection: &Connection, mac: &String) -> Result<Device, Box<dyn Error>> {
-    let mut stmt = connection.prepare(
-        "SELECT type, name
-        FROM Devices
-        WHERE mac_address = ?1",
-    )?;
+// fn get_device_by_mac(connection: &Connection, mac: &String) -> Result<Device, Box<dyn Error>> {
+//     let mut stmt = connection.prepare(
+//         "SELECT type, name
+//         FROM Devices
+//         WHERE mac_address = ?1",
+//     )?;
 
-    Ok(stmt.query_row([mac], |row| {
-        let mut device = Device::new();
-        device.mac = mac.clone();
-        device.type_ = EnumOrUnknown::new(device_type_utils::from_string(&row.get(0)?));
-        device.name = row.get(1)?;
+//     Ok(stmt.query_row([mac], |row| {
+//         let mut device = Device::new();
+//         device.mac = mac.clone();
+//         device.type_ = EnumOrUnknown::new(device_type_utils::from_string(&row.get::<_, String>(0)?[..]));
+//         device.name = row.get(1)?;
 
-        Ok(device)
-    })?)
-}
+//         Ok(device)
+//     })?)
+// }
 
 fn get_device_id(connection: &Connection, device: &Device) -> Result<u64, Box<dyn Error>> {
     let mut stmt = connection.prepare(
@@ -295,8 +295,7 @@ fn get_all_devices_from_db(connection: &Connection) -> Result<Vec<Device>, Box<d
     })?;
 
     let devices = devices_iter
-        .filter(|device| device.is_ok())
-        .map(|device| device.unwrap())
+        .filter_map(|device| device.ok())
         .collect::<Vec<_>>();
 
     debug!("Devices received from db\n\t{:?}", devices);
@@ -350,15 +349,18 @@ fn get_measurements_of_device_after(
     let mut rows = stmt.query((get_device_id(connection, device)?, &timestamp))?;
     while let Some(row) = rows.next()? {
         let mut measurement = Measurement::new();
-        measurement.type_ = EnumOrUnknown::new(measurement_type_utils::from_string(&row.get(0)?));
+        measurement.type_ = EnumOrUnknown::new(measurement_type_utils::from_string(
+            &row.get::<_, String>(0)?[..],
+        ));
         measurement.value = row.get(2)?;
-        measurement.status =
-            EnumOrUnknown::new(measurement_status_utils::from_string(&row.get(3)?));
+        measurement.status = EnumOrUnknown::new(measurement_status_utils::from_string(
+            &row.get::<_, String>(3)?[..],
+        ));
         let timestamp = row.get::<_, u64>(1)?;
 
-        if !timestamp_measurements.contains_key(&timestamp) {
-            timestamp_measurements.insert(timestamp, Vec::new());
-        }
+        timestamp_measurements
+            .entry(timestamp)
+            .or_insert_with(Vec::new);
 
         timestamp_measurements
             .get_mut(&timestamp)
@@ -557,25 +559,25 @@ mod test {
         Ok(())
     }
 
-    #[test]
-    fn get_device_by_mac_success() -> Result<(), Box<dyn Error>> {
-        let connection = connect_to_dummy_db()?;
-        let mac = String::from("mac");
-        let data_packet = create_data_packet(
-            mac.clone(),
-            "test".to_string(),
-            DeviceType::LampController,
-            None,
-        );
+    // #[test]
+    // fn get_device_by_mac_success() -> Result<(), Box<dyn Error>> {
+    //     let connection = connect_to_dummy_db()?;
+    //     let mac = String::from("mac");
+    //     let data_packet = create_data_packet(
+    //         mac.clone(),
+    //         "test".to_string(),
+    //         DeviceType::LampController,
+    //         None,
+    //     );
 
-        setup_db(&connection)?;
-        add_data_packet_to_db(&connection, &data_packet)?;
+    //     setup_db(&connection)?;
+    //     add_data_packet_to_db(&connection, &data_packet)?;
 
-        let res_device = get_device_by_mac(&connection, &mac)?;
-        assert_eq!(res_device.mac, data_packet.device.mac);
+    //     let res_device = get_device_by_mac(&connection, &mac)?;
+    //     assert_eq!(res_device.mac, data_packet.device.mac);
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     #[test]
     fn update_device_name_succes() -> Result<(), Box<dyn Error>> {
@@ -598,7 +600,7 @@ mod test {
     ) -> Result<(Connection, DataPacket, DeviceMeasurements, u64), Box<dyn Error>> {
         let connection = connect_to_dummy_db()?;
         let timestamp = 1000;
-        let mut device_measurement = create_device_measurments(timestamp.clone());
+        let mut device_measurement = create_device_measurments(timestamp);
         push_measurement(
             &mut device_measurement,
             5.0,
