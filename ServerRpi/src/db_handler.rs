@@ -73,6 +73,10 @@ impl DBHandler {
     ) -> Result<Vec<DeviceMeasurements>, Box<dyn Error>> {
         get_all_measurements_of_device(&self.connection, device)
     }
+
+    pub fn update_device_name(&self, device: &Device, name: &String) -> Result<(), Box<dyn Error>> {
+        update_device_name(&self.connection, device, name)
+    }
 }
 
 fn setup_db(connection: &Connection) -> Result<(), Box<dyn Error>> {
@@ -372,6 +376,21 @@ fn get_measurements_of_device_after(
         .collect::<Vec<_>>())
 }
 
+fn update_device_name(
+    connection: &Connection,
+    device: &Device,
+    name: &String,
+) -> Result<(), Box<dyn Error>> {
+    connection.execute(
+        "UPDATE Devices
+             SET name = ?1
+             WHERE id_device = ?2",
+        (name, get_device_id(connection, device)?),
+    )?;
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod test {
     use crate::{light_energy_management_system::MeasurementStatus, DeviceType};
@@ -554,6 +573,23 @@ mod test {
 
         let res_device = get_device_by_mac(&connection, &mac)?;
         assert_eq!(res_device.mac, data_packet.device.mac);
+
+        Ok(())
+    }
+
+    #[test]
+    fn update_device_name_succes() -> Result<(), Box<dyn Error>> {
+        let connection = connect_to_dummy_db()?;
+        let device = Device::new();
+        let new_name = String::from("test");
+
+        setup_db(&connection)?;
+        add_device_to_db(&connection, &device)?;
+        update_device_name(&connection, &device, &new_name)?;
+        let devices = get_all_devices_from_db(&connection)?;
+        let updated_device = &devices[0];
+
+        assert_eq!(updated_device.name, new_name);
 
         Ok(())
     }

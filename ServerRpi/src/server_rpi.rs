@@ -84,10 +84,21 @@ impl ServerRpi {
                 get_and_send_devices(&sender_id, &self.db_handler, &self.mqtt_conn).await?
             }
             MqttCommand::HandleDataPacket => {
-                parse_and_insert_data_packet(&msg.payload, &self.db_handler)?
+                parse_and_insert_data_packet(&mqtt_payload.msg, &self.db_handler)?
             }
             MqttCommand::GetDeviceMeasurements => {
                 get_and_send_device_measurements(
+                    &sender_id,
+                    &mqtt_payload.msg,
+                    &self.db_handler,
+                    &self.mqtt_conn,
+                )
+                .await?
+            }
+            MqttCommand::GetDeviceMeasurementsAfter => {} // TODO
+            MqttCommand::GetDeviceMeasurementsBefore => {} // TODO
+            MqttCommand::ChangeDeviceName => {
+                change_device_name(
                     &sender_id,
                     &mqtt_payload.msg,
                     &self.db_handler,
@@ -103,7 +114,7 @@ impl ServerRpi {
 }
 
 fn parse_and_insert_data_packet(
-    payload: &[u8],
+    payload: &Vec<u8>,
     db_handler: &DBHandler,
 ) -> Result<(), Box<dyn Error>> {
     let parsed_msg = DataPacket::parse_from_bytes(payload);
@@ -147,11 +158,11 @@ async fn get_and_send_devices(
 
 async fn get_and_send_device_measurements(
     sender_id: &String,
-    device: &Vec<u8>,
+    payload: &Vec<u8>,
     db_handler: &DBHandler,
     mqtt_conn: &MqttConnection,
 ) -> Result<(), Box<dyn Error>> {
-    let device = Device::parse_from_bytes(device)?;
+    let device = Device::parse_from_bytes(payload)?;
     let device_measurements = db_handler.get_all_measurements_of_device(&device)?;
     let data_packet = DataPacket {
         device: MessageField::some(device),
@@ -162,6 +173,33 @@ async fn get_and_send_device_measurements(
     let mqtt_payload = MqttPayload {
         command: EnumOrUnknown::new(MqttCommand::GetDeviceMeasurements),
         msg: data_packet.write_to_bytes()?,
+        special_fields: SpecialFields::new(),
+    };
+
+    send_mqtt_payload(sender_id, &mqtt_payload, mqtt_conn).await?;
+
+    Ok(())
+}
+
+async fn change_device_name(
+    sender_id: &String,
+    payload: &Vec<u8>,
+    db_handler: &DBHandler,
+    mqtt_conn: &MqttConnection,
+) -> Result<(), Box<dyn Error>> {
+    let device = Device::parse_from_bytes(payload)?;
+
+    let msg;
+
+    if let Err(e) = db_handler.update_device_name(&device, &device.name) {
+        msg = format!("Error: {}", e);
+    } else {
+        msg = String::from("ok");
+    }
+
+    let mqtt_payload = MqttPayload {
+        command: EnumOrUnknown::new(MqttCommand::ChangeDeviceName),
+        msg: msg.as_bytes().to_vec(),
         special_fields: SpecialFields::new(),
     };
 
