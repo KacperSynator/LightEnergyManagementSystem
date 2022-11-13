@@ -3,7 +3,7 @@
 namespace {
 using DataPacket = light_energy_management_system_DataPacket;
 using Measurment = light_energy_management_system_Measurement;
-using DeviceMeasurments = light_energy_management_system_DeviceMeasurments;
+using DeviceMeasurments = light_energy_management_system_DeviceMeasurements;
 using MeasurementType = light_energy_management_system_MeasurementType;
 using Measurments = std::vector<Measurment>;
 
@@ -48,7 +48,7 @@ bool encode_device_measurments(pb_ostream_t* stream, const pb_field_t* field, vo
     if (!pb_encode_tag_for_field(stream, field))
         return false;
     
-    return pb_encode_submessage(stream, light_energy_management_system_DeviceMeasurments_fields, *arg);
+    return pb_encode_submessage(stream, light_energy_management_system_DeviceMeasurements_fields, *arg);
 }
 
 const std::string EncodeDataPacket(const DataPacket& data) {
@@ -191,7 +191,7 @@ void LampController::Loop() {
         Serial.println("Failed to read energy meter data!");
     }
 
-    DeviceMeasurments device_measurments = light_energy_management_system_DeviceMeasurments_init_zero;
+    DeviceMeasurments device_measurments = light_energy_management_system_DeviceMeasurements_init_zero;
     device_measurments.measurements.arg = static_cast<void*>(&measurments);
     device_measurments.measurements.funcs.encode = &encode_measurments;
 

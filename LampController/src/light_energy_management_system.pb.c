@@ -6,16 +6,23 @@
 #error Regenerate this file with the current version of nanopb generator.
 #endif
 
+PB_BIND(light_energy_management_system_MqttPayload, light_energy_management_system_MqttPayload, AUTO)
+
+
 PB_BIND(light_energy_management_system_Device, light_energy_management_system_Device, AUTO)
+
+
+PB_BIND(light_energy_management_system_Devices, light_energy_management_system_Devices, AUTO)
 
 
 PB_BIND(light_energy_management_system_Measurement, light_energy_management_system_Measurement, AUTO)
 
 
-PB_BIND(light_energy_management_system_DeviceMeasurments, light_energy_management_system_DeviceMeasurments, AUTO)
+PB_BIND(light_energy_management_system_DeviceMeasurements, light_energy_management_system_DeviceMeasurements, AUTO)
 
 
 PB_BIND(light_energy_management_system_DataPacket, light_energy_management_system_DataPacket, AUTO)
+
 
 
 

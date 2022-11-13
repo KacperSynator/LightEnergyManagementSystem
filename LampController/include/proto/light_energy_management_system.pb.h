@@ -10,6 +10,16 @@
 #endif
 
 /* Enum definitions */
+typedef enum _light_energy_management_system_MqttCommand { 
+    light_energy_management_system_MqttCommand_UnknownCommand = 0, 
+    light_energy_management_system_MqttCommand_HandleDataPacket = 1, 
+    light_energy_management_system_MqttCommand_GetAllDevices = 2, 
+    light_energy_management_system_MqttCommand_GetDeviceMeasurements = 3, 
+    light_energy_management_system_MqttCommand_GetDeviceMeasurementsBefore = 4, 
+    light_energy_management_system_MqttCommand_GetDeviceMeasurementsAfter = 5, 
+    light_energy_management_system_MqttCommand_ChangeDeviceName = 6 
+} light_energy_management_system_MqttCommand;
+
 typedef enum _light_energy_management_system_DeviceType { 
     light_energy_management_system_DeviceType_UnknownDevice = 0, 
     light_energy_management_system_DeviceType_LampController = 1 
@@ -32,22 +42,31 @@ typedef enum _light_energy_management_system_MeasurementStatus {
 } light_energy_management_system_MeasurementStatus;
 
 /* Struct definitions */
+typedef struct _light_energy_management_system_Devices { 
+    pb_callback_t devices; 
+} light_energy_management_system_Devices;
+
 typedef struct _light_energy_management_system_Device { 
     pb_callback_t name; 
     pb_callback_t mac; 
     light_energy_management_system_DeviceType type; 
 } light_energy_management_system_Device;
 
-typedef struct _light_energy_management_system_DeviceMeasurments { 
+typedef struct _light_energy_management_system_DeviceMeasurements { 
     uint64_t timestamp; 
     pb_callback_t measurements; 
-} light_energy_management_system_DeviceMeasurments;
+} light_energy_management_system_DeviceMeasurements;
 
 typedef struct _light_energy_management_system_Measurement { 
     float value; 
     light_energy_management_system_MeasurementType type; 
     light_energy_management_system_MeasurementStatus status; 
 } light_energy_management_system_Measurement;
+
+typedef struct _light_energy_management_system_MqttPayload { 
+    light_energy_management_system_MqttCommand command; 
+    pb_callback_t msg; 
+} light_energy_management_system_MqttPayload;
 
 typedef struct _light_energy_management_system_DataPacket { 
     bool has_device;
@@ -57,6 +76,10 @@ typedef struct _light_energy_management_system_DataPacket {
 
 
 /* Helper constants for enums */
+#define _light_energy_management_system_MqttCommand_MIN light_energy_management_system_MqttCommand_UnknownCommand
+#define _light_energy_management_system_MqttCommand_MAX light_energy_management_system_MqttCommand_ChangeDeviceName
+#define _light_energy_management_system_MqttCommand_ARRAYSIZE ((light_energy_management_system_MqttCommand)(light_energy_management_system_MqttCommand_ChangeDeviceName+1))
+
 #define _light_energy_management_system_DeviceType_MIN light_energy_management_system_DeviceType_UnknownDevice
 #define _light_energy_management_system_DeviceType_MAX light_energy_management_system_DeviceType_LampController
 #define _light_energy_management_system_DeviceType_ARRAYSIZE ((light_energy_management_system_DeviceType)(light_energy_management_system_DeviceType_LampController+1))
@@ -75,34 +98,53 @@ extern "C" {
 #endif
 
 /* Initializer values for message structs */
+#define light_energy_management_system_MqttPayload_init_default {_light_energy_management_system_MqttCommand_MIN, {{NULL}, NULL}}
 #define light_energy_management_system_Device_init_default {{{NULL}, NULL}, {{NULL}, NULL}, _light_energy_management_system_DeviceType_MIN}
+#define light_energy_management_system_Devices_init_default {{{NULL}, NULL}}
 #define light_energy_management_system_Measurement_init_default {0, _light_energy_management_system_MeasurementType_MIN, _light_energy_management_system_MeasurementStatus_MIN}
-#define light_energy_management_system_DeviceMeasurments_init_default {0, {{NULL}, NULL}}
+#define light_energy_management_system_DeviceMeasurements_init_default {0, {{NULL}, NULL}}
 #define light_energy_management_system_DataPacket_init_default {false, light_energy_management_system_Device_init_default, {{NULL}, NULL}}
+#define light_energy_management_system_MqttPayload_init_zero {_light_energy_management_system_MqttCommand_MIN, {{NULL}, NULL}}
 #define light_energy_management_system_Device_init_zero {{{NULL}, NULL}, {{NULL}, NULL}, _light_energy_management_system_DeviceType_MIN}
+#define light_energy_management_system_Devices_init_zero {{{NULL}, NULL}}
 #define light_energy_management_system_Measurement_init_zero {0, _light_energy_management_system_MeasurementType_MIN, _light_energy_management_system_MeasurementStatus_MIN}
-#define light_energy_management_system_DeviceMeasurments_init_zero {0, {{NULL}, NULL}}
+#define light_energy_management_system_DeviceMeasurements_init_zero {0, {{NULL}, NULL}}
 #define light_energy_management_system_DataPacket_init_zero {false, light_energy_management_system_Device_init_zero, {{NULL}, NULL}}
 
 /* Field tags (for use in manual encoding/decoding) */
+#define light_energy_management_system_Devices_devices_tag 1
 #define light_energy_management_system_Device_name_tag 1
 #define light_energy_management_system_Device_mac_tag 2
 #define light_energy_management_system_Device_type_tag 3
-#define light_energy_management_system_DeviceMeasurments_timestamp_tag 1
-#define light_energy_management_system_DeviceMeasurments_measurements_tag 2
+#define light_energy_management_system_DeviceMeasurements_timestamp_tag 1
+#define light_energy_management_system_DeviceMeasurements_measurements_tag 2
 #define light_energy_management_system_Measurement_value_tag 1
 #define light_energy_management_system_Measurement_type_tag 2
 #define light_energy_management_system_Measurement_status_tag 3
+#define light_energy_management_system_MqttPayload_command_tag 1
+#define light_energy_management_system_MqttPayload_msg_tag 2
 #define light_energy_management_system_DataPacket_device_tag 1
 #define light_energy_management_system_DataPacket_device_measurements_tag 2
 
 /* Struct field encoding specification for nanopb */
+#define light_energy_management_system_MqttPayload_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, UENUM,    command,           1) \
+X(a, CALLBACK, REPEATED, BYTES,    msg,               2)
+#define light_energy_management_system_MqttPayload_CALLBACK pb_default_field_callback
+#define light_energy_management_system_MqttPayload_DEFAULT NULL
+
 #define light_energy_management_system_Device_FIELDLIST(X, a) \
 X(a, CALLBACK, SINGULAR, STRING,   name,              1) \
 X(a, CALLBACK, SINGULAR, STRING,   mac,               2) \
 X(a, STATIC,   SINGULAR, UENUM,    type,              3)
 #define light_energy_management_system_Device_CALLBACK pb_default_field_callback
 #define light_energy_management_system_Device_DEFAULT NULL
+
+#define light_energy_management_system_Devices_FIELDLIST(X, a) \
+X(a, CALLBACK, REPEATED, MESSAGE,  devices,           1)
+#define light_energy_management_system_Devices_CALLBACK pb_default_field_callback
+#define light_energy_management_system_Devices_DEFAULT NULL
+#define light_energy_management_system_Devices_devices_MSGTYPE light_energy_management_system_Device
 
 #define light_energy_management_system_Measurement_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, FLOAT,    value,             1) \
@@ -111,12 +153,12 @@ X(a, STATIC,   SINGULAR, UENUM,    status,            3)
 #define light_energy_management_system_Measurement_CALLBACK NULL
 #define light_energy_management_system_Measurement_DEFAULT NULL
 
-#define light_energy_management_system_DeviceMeasurments_FIELDLIST(X, a) \
+#define light_energy_management_system_DeviceMeasurements_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT64,   timestamp,         1) \
 X(a, CALLBACK, REPEATED, MESSAGE,  measurements,      2)
-#define light_energy_management_system_DeviceMeasurments_CALLBACK pb_default_field_callback
-#define light_energy_management_system_DeviceMeasurments_DEFAULT NULL
-#define light_energy_management_system_DeviceMeasurments_measurements_MSGTYPE light_energy_management_system_Measurement
+#define light_energy_management_system_DeviceMeasurements_CALLBACK pb_default_field_callback
+#define light_energy_management_system_DeviceMeasurements_DEFAULT NULL
+#define light_energy_management_system_DeviceMeasurements_measurements_MSGTYPE light_energy_management_system_Measurement
 
 #define light_energy_management_system_DataPacket_FIELDLIST(X, a) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  device,            1) \
@@ -124,22 +166,28 @@ X(a, CALLBACK, REPEATED, MESSAGE,  device_measurements,   2)
 #define light_energy_management_system_DataPacket_CALLBACK pb_default_field_callback
 #define light_energy_management_system_DataPacket_DEFAULT NULL
 #define light_energy_management_system_DataPacket_device_MSGTYPE light_energy_management_system_Device
-#define light_energy_management_system_DataPacket_device_measurements_MSGTYPE light_energy_management_system_DeviceMeasurments
+#define light_energy_management_system_DataPacket_device_measurements_MSGTYPE light_energy_management_system_DeviceMeasurements
 
+extern const pb_msgdesc_t light_energy_management_system_MqttPayload_msg;
 extern const pb_msgdesc_t light_energy_management_system_Device_msg;
+extern const pb_msgdesc_t light_energy_management_system_Devices_msg;
 extern const pb_msgdesc_t light_energy_management_system_Measurement_msg;
-extern const pb_msgdesc_t light_energy_management_system_DeviceMeasurments_msg;
+extern const pb_msgdesc_t light_energy_management_system_DeviceMeasurements_msg;
 extern const pb_msgdesc_t light_energy_management_system_DataPacket_msg;
 
 /* Defines for backwards compatibility with code written before nanopb-0.4.0 */
+#define light_energy_management_system_MqttPayload_fields &light_energy_management_system_MqttPayload_msg
 #define light_energy_management_system_Device_fields &light_energy_management_system_Device_msg
+#define light_energy_management_system_Devices_fields &light_energy_management_system_Devices_msg
 #define light_energy_management_system_Measurement_fields &light_energy_management_system_Measurement_msg
-#define light_energy_management_system_DeviceMeasurments_fields &light_energy_management_system_DeviceMeasurments_msg
+#define light_energy_management_system_DeviceMeasurements_fields &light_energy_management_system_DeviceMeasurements_msg
 #define light_energy_management_system_DataPacket_fields &light_energy_management_system_DataPacket_msg
 
 /* Maximum encoded size of messages (where known) */
+/* light_energy_management_system_MqttPayload_size depends on runtime parameters */
 /* light_energy_management_system_Device_size depends on runtime parameters */
-/* light_energy_management_system_DeviceMeasurments_size depends on runtime parameters */
+/* light_energy_management_system_Devices_size depends on runtime parameters */
+/* light_energy_management_system_DeviceMeasurements_size depends on runtime parameters */
 /* light_energy_management_system_DataPacket_size depends on runtime parameters */
 #define light_energy_management_system_Measurement_size 9
 
