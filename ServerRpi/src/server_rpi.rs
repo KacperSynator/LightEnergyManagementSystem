@@ -78,6 +78,8 @@ impl ServerRpi {
 
         let mqtt_payload = MqttPayload::parse_from_bytes(&msg.payload)?;
 
+        info!("MqttPayload: {:?}", &mqtt_payload);
+
         let (_, sender_id) = parse_topic(&msg.topic);
 
         match mqtt_payload.command.enum_value_or_default() {
