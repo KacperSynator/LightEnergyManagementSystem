@@ -9,6 +9,31 @@
 import 'dart:core' as $core;
 import 'package:protobuf/protobuf.dart' as $pb;
 
+class MqttCommand extends $pb.ProtobufEnum {
+  static const MqttCommand UnknownCommand = MqttCommand._(0, const $core.bool.fromEnvironment('protobuf.omit_enum_names') ? '' : 'UnknownCommand');
+  static const MqttCommand HandleDataPacket = MqttCommand._(1, const $core.bool.fromEnvironment('protobuf.omit_enum_names') ? '' : 'HandleDataPacket');
+  static const MqttCommand GetAllDevices = MqttCommand._(2, const $core.bool.fromEnvironment('protobuf.omit_enum_names') ? '' : 'GetAllDevices');
+  static const MqttCommand GetDeviceMeasurements = MqttCommand._(3, const $core.bool.fromEnvironment('protobuf.omit_enum_names') ? '' : 'GetDeviceMeasurements');
+  static const MqttCommand GetDeviceMeasurementsBefore = MqttCommand._(4, const $core.bool.fromEnvironment('protobuf.omit_enum_names') ? '' : 'GetDeviceMeasurementsBefore');
+  static const MqttCommand GetDeviceMeasurementsAfter = MqttCommand._(5, const $core.bool.fromEnvironment('protobuf.omit_enum_names') ? '' : 'GetDeviceMeasurementsAfter');
+  static const MqttCommand ChangeDeviceName = MqttCommand._(6, const $core.bool.fromEnvironment('protobuf.omit_enum_names') ? '' : 'ChangeDeviceName');
+
+  static const $core.List<MqttCommand> values = <MqttCommand> [
+    UnknownCommand,
+    HandleDataPacket,
+    GetAllDevices,
+    GetDeviceMeasurements,
+    GetDeviceMeasurementsBefore,
+    GetDeviceMeasurementsAfter,
+    ChangeDeviceName,
+  ];
+
+  static final $core.Map<$core.int, MqttCommand> _byValue = $pb.ProtobufEnum.initByValue(values);
+  static MqttCommand? valueOf($core.int value) => _byValue[value];
+
+  const MqttCommand._($core.int v, $core.String n) : super(v, n);
+}
+
 class DeviceType extends $pb.ProtobufEnum {
   static const DeviceType UnknownDevice = DeviceType._(0, const $core.bool.fromEnvironment('protobuf.omit_enum_names') ? '' : 'UnknownDevice');
   static const DeviceType LampController = DeviceType._(1, const $core.bool.fromEnvironment('protobuf.omit_enum_names') ? '' : 'LampController');

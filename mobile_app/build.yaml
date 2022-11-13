@@ -3,13 +3,13 @@ targets:
     sources:
       - $package$
       - lib/$lib$
-      - proto/**
+      - lib/proto/**
     builders:
       protoc_builder:
         options:
           protobuf_version: "3.19.1"
           protoc_plugin_version: "20.0.0"
-          root_dir: "proto/"
+          root_dir: "lib/proto/"
           proto_paths:
-            - "proto/"
+            - "lib/proto/"
           out_dir: "lib/proto"

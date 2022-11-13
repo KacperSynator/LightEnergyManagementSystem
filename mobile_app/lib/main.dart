@@ -29,6 +29,20 @@ class _MobileAppUiState extends State<MobileAppUi> {
         appBar: AppBar(
           title: const Text("Light Energy Management System"),
         ),
+        body: Column(children: [
+          ElevatedButton(
+            onPressed: () async {
+              mobileApp.requestGetAllDevices();
+            },
+            child: const Text("DeviceRequest"),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              mobileApp.requestGetAllDevices();
+            },
+            child: const Text("DeviceRequest"),
+          ),
+        ]),
       ),
     );
   }
