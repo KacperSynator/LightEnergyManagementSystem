@@ -9,7 +9,11 @@ use LocalRpi::local_rpi::LocalRPi;
 async fn main() -> Result<(), Box<dyn Error>> {
     pretty_env_logger::init();
 
-    let local_rpi = LocalRPi::new().await?;
+    let mut local_rpi = LocalRPi::new().await?;
+
+    if let Err(e) = local_rpi.subscribe().await {
+        error!("LocalRpi failed to subscribe: {:?}", e);
+    }
 
     if let Err(e) = local_rpi
         .send_msg_to(
@@ -22,8 +26,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     loop {
-        if let Err(e) = local_rpi.get_and_handle_lamp_controllers_data().await {
-            error!("LocalRpi failed to read/handle data: {:?}", e);
+        // if let Err(e) = local_rpi.get_and_handle_lamp_controllers_data().await {
+        //     error!("LocalRpi failed to read/handle data: {:?}", e);
+        // }
+
+        if let Err(e) = local_rpi.read_next_msg().await {
+            error!("ServerRpi failed to read next message: {:?}", e);
         }
 
         sleep(Duration::from_millis(1000));

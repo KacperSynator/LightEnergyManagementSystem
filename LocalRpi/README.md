@@ -21,7 +21,9 @@ sudo apt-get install build-essential bluez bluetooth pi-bluetooth libbluetooth-d
 curl https://sh.rustup.rs -sSf | sh
 ```
 
-#### 3. Enable bluez for pi user
+#### 3. 
+
+#### 4. Enable bluez for pi user
 * open `bluetooth.conf` file using text editor
 
     ```bash
@@ -48,16 +50,3 @@ RUST_LOG=info cargo run
 ```bash
 cargo test
 ```
-
-## Roadmap
-- [x] Protobuf
-- [x] BLE
-    - [x] Receive data
-    - [x] Send data
-    - [x] Tests
-- [ ] LTE module
-    - [ ] AT commands
-    - [ ] publish/subscribe using MQTT
-    - [ ] Tests
-- [ ] Integrate and test components
-- [ ] Update README
