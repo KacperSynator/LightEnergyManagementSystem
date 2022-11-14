@@ -1,6 +1,6 @@
-import 'package:mobile_app/proto/light_energy_management_system.pbjson.dart';
 import 'package:mqtt_client/mqtt_client.dart' hide MqttPayload;
 import 'package:protobuf/protobuf.dart';
+import 'dart:async';
 
 import 'proto/light_energy_management_system.pb.dart';
 import 'utils.dart';
@@ -14,9 +14,16 @@ class MobileApp {
       willMsg: "disconnected",
       keepAlive: 30);
 
-  String uniqueId = getUniqueId();
+  final String uniqueId = getUniqueId();
+  final StreamController<Devices> devicesStreamController;
+  final StreamController<Device> deviceNameChangeStreamController;
 
-  MobileApp();
+  MobileApp(
+      this.devicesStreamController, this.deviceNameChangeStreamController) {
+    deviceNameChangeStreamController.stream.listen((device) async {
+      await requestChangeDeviceName(device);
+    });
+  }
 
   Future<bool> init() async {
     logger.info("MobileApp::init: uniqueId: $uniqueId");
@@ -31,8 +38,9 @@ class MobileApp {
         "u/$uniqueId", String.fromCharCodes(encodedMqttPayload));
   }
 
-  Future<bool> requestChangeDeviceName() async {
-    final mqttPayload = MqttPayload(command: MqttCommand.ChangeDeviceName);
+  Future<bool> requestChangeDeviceName(Device device) async {
+    final mqttPayload = MqttPayload(
+        command: MqttCommand.ChangeDeviceName, msg: [device.writeToBuffer()]);
     final encodedMqttPayload = mqttPayload.writeToBuffer();
     return await _publish(
         "u/$uniqueId", String.fromCharCodes(encodedMqttPayload));
@@ -98,6 +106,7 @@ class MobileApp {
 
     final devices = Devices.fromBuffer(mqttPayload.msg[0]);
     logger.info("handleGetAllDevices: parsed devices: $devices");
+    devicesStreamController.sink.add(devices);
   }
 
   void _handleChangeDeviceName(MqttPayload mqttPayload) {
@@ -108,5 +117,6 @@ class MobileApp {
 
     final response = String.fromCharCodes(mqttPayload.msg[0]);
     logger.info("handleChangeDeviceName: parsed response: $response");
+    requestGetAllDevices();
   }
 }
