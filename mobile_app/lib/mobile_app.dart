@@ -17,9 +17,12 @@ class MobileApp {
   final String uniqueId = getUniqueId();
   final StreamController<Devices> devicesStreamController;
   final StreamController<Device> deviceNameChangeStreamController;
+  final StreamController<DataPacket> deviceMeasurementsStreamController;
 
   MobileApp(
-      this.devicesStreamController, this.deviceNameChangeStreamController) {
+      {required this.devicesStreamController,
+      required this.deviceNameChangeStreamController,
+      required this.deviceMeasurementsStreamController}) {
     deviceNameChangeStreamController.stream.listen((device) async {
       await requestChangeDeviceName(device);
     });
@@ -41,6 +44,14 @@ class MobileApp {
   Future<bool> requestChangeDeviceName(Device device) async {
     final mqttPayload = MqttPayload(
         command: MqttCommand.ChangeDeviceName, msg: [device.writeToBuffer()]);
+    final encodedMqttPayload = mqttPayload.writeToBuffer();
+    return await _publish(
+        "u/$uniqueId", String.fromCharCodes(encodedMqttPayload));
+  }
+
+  Future<bool> requestDeviceMeasurements(Device device) async {
+    final mqttPayload = MqttPayload(
+        command: MqttCommand.GetDeviceMeasurements, msg: [device.writeToBuffer()]);
     final encodedMqttPayload = mqttPayload.writeToBuffer();
     return await _publish(
         "u/$uniqueId", String.fromCharCodes(encodedMqttPayload));
@@ -81,13 +92,19 @@ class MobileApp {
         }
         break;
       case MqttCommand.GetDeviceMeasurements:
-        {}
+        {
+          _handleDeviceMeasurements(mqttPayload);
+        }
         break;
       case MqttCommand.GetDeviceMeasurementsAfter:
-        {}
+        {
+          _handleDeviceMeasurements(mqttPayload);
+        }
         break;
       case MqttCommand.GetDeviceMeasurementsBefore:
-        {}
+        {
+          _handleDeviceMeasurements(mqttPayload);
+        }
         break;
       default:
         {
@@ -118,5 +135,17 @@ class MobileApp {
     final response = String.fromCharCodes(mqttPayload.msg[0]);
     logger.info("handleChangeDeviceName: parsed response: $response");
     requestGetAllDevices();
+  }
+
+  void _handleDeviceMeasurements(MqttPayload mqttPayload) {
+    if (mqttPayload.msg.length != 1) {
+      logger
+          .shout("handleDeviceMeasurements: mqttPayload.msg is not of size 1");
+      return;
+    }
+
+    final dataPacket = DataPacket.fromBuffer(mqttPayload.msg[0]);
+    logger.info("handleDeviceMeasurements: parsed data packet: $dataPacket");
+    deviceMeasurementsStreamController.sink.add(dataPacket);
   }
 }
