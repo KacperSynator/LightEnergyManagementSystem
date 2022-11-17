@@ -16,7 +16,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use ble_connection::BLEConnection;
 use mqtt_connection::MqttConnection;
 
-const HOST: &str = "192.168.1.109";
+const HOST: &str = "192.168.1.223";
 const PORT: u16 = 1883;
 const DEVICE_NAME: &str = "LocalRpi";
 const KEEP_ALIVE_TIME: u64 = 30;
@@ -172,6 +172,7 @@ fn read_interface_mac_address(interface: &str) -> Result<String, Box<dyn Error>>
     let mut file = fs::File::open(path)?;
     let mut mac = String::new();
     file.read_to_string(&mut mac)?;
+    mac.pop(); // remove '\n'
     debug!("MAC address: {}", mac);
 
     Ok(mac)
