@@ -36,7 +36,7 @@ Responsible for receivng data data from LocalRpi using MQTT. Stores data in data
 **Written in Rust  
 Used board: RPI 4B**
 
-## [MobileApp](MobileApp)
+## [mobile_app](mobile_app)
 Responsible for presenting data for user. Used to customize names of devices. Data is presented as graphs for periods specified by user (last month, all time). Communicates with ServerRpi using MQTT.
 
 **Written in Flutter**
@@ -47,11 +47,26 @@ For data serialization [protocal buffers](https://developers.google.com/protocol
 * LampData - sensor data and timestamp
 * DataPacket - above 2 in one message  
 
-### Proto file
-```proto3
+### [Proto file](proto/light_energy_management_system.proto)
+```proto
 syntax = "proto3";
 
 package light_energy_management_system;
+
+enum MqttCommand {
+    UnknownCommand = 0;
+    HandleDataPacket = 1;
+    GetAllDevices = 2;
+    GetDeviceMeasurements = 3;
+    GetDeviceMeasurementsBefore = 4;
+    GetDeviceMeasurementsAfter = 5;
+    ChangeDeviceName = 6;
+}
+
+message MqttPayload {
+    MqttCommand command = 1;
+    repeated bytes msg = 2;
+}
 
 enum DeviceType {
     UnknownDevice = 0;
@@ -62,6 +77,10 @@ message Device {
     string name = 1;
     string mac = 2;
     DeviceType type = 3;
+}
+
+message Devices {
+    repeated Device devices = 1;
 }
 
 enum MeasurementType {
@@ -86,13 +105,13 @@ message Measurement {
     MeasurementStatus status = 3;
 }
 
-message DeviceMeasurments {
+message DeviceMeasurements {
     uint64 timestamp = 1;
     repeated Measurement measurements = 2;
 }
 
 message DataPacket {
     Device device = 1;
-    repeated DeviceMeasurments device_measurements = 2;
+    repeated DeviceMeasurements device_measurements = 2;
 }
 ```
