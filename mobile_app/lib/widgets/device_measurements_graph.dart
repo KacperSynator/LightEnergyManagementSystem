@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:fixnum/fixnum.dart';
 import 'package:collection/collection.dart';
 import 'dart:math';
 import 'dart:async';
@@ -33,9 +32,9 @@ class _DeviceMeasurementsGraphState extends State<DeviceMeasurementsGraph> {
   DataPacket? dataPacket;
   List<MeasurementType> measurementsTypes = [];
   String name = "Device: (wololo)";
-  FlSpot minXY = FlSpot(0, 0);
-  FlSpot maxXY = FlSpot(10, 10);
-  List<FlSpot> points = [FlSpot(4, 4), FlSpot(10, 10)];
+  FlSpot minXY = const FlSpot(0, 0);
+  FlSpot maxXY = const FlSpot(10, 10);
+  List<FlSpot> points = [const FlSpot(4, 4), const FlSpot(10, 10)];
 
   @override
   void initState() {

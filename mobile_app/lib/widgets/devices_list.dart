@@ -1,6 +1,4 @@
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:mobile_app/proto/light_energy_management_system.pbjson.dart';
 import 'dart:async';
 
 import '../proto/light_energy_management_system.pb.dart';

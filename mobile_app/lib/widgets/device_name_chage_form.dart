@@ -27,6 +27,5 @@ class DeviceNameChangeForm extends StatelessWidget {
         ),
       ],
     );
-    ;
   }
 }
