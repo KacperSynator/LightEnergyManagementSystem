@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:collection/collection.dart';
+import 'package:mobile_app/utils.dart';
+import 'package:intl/intl.dart';
 import 'dart:math';
 import 'dart:async';
 
@@ -34,6 +36,7 @@ class _DeviceMeasurementsGraphState extends State<DeviceMeasurementsGraph> {
   String name = "Device: (wololo)";
   FlSpot minXY = const FlSpot(0, 0);
   FlSpot maxXY = const FlSpot(10, 10);
+  double subtractedTimestamp = 0;
   List<FlSpot> points = [const FlSpot(4, 4), const FlSpot(10, 10)];
 
   @override
@@ -47,15 +50,37 @@ class _DeviceMeasurementsGraphState extends State<DeviceMeasurementsGraph> {
   void _updateGraph(DataPacket dataPacket) {
     this.dataPacket = dataPacket;
 
+    if (dataPacket.deviceMeasurements.isEmpty) {
+      logger.warning("DeviceMeasurementsGraph::_updateGraph: No measuremnts");
+
+      setState(() {
+        name = "Device: ${dataPacket.device.name} ()";
+        points = [];
+      });
+
+      return;
+    }
+
     measurementsTypes = dataPacket.deviceMeasurements.first.measurements
         .map(((measurement) => measurement.type))
         .toList();
+
+    dataPacket.deviceMeasurements
+        .sort(((a, b) => a.timestamp.compareTo(b.timestamp)));
+
+    logger.info(
+        "DeviceGraph:_updateGraph: deviceMeasurements: ${dataPacket.deviceMeasurements}");
+
+    if (measurementsTypes.isEmpty) {
+      return;
+    }
 
     final type = measurementsTypes.first;
 
     final pointsX = _getNormalizedXPoints();
 
-    final maxX = pointsX.reduce(max);
+    final minX = pointsX.first;
+    final maxX = pointsX.last;
 
     final pointsY = _getYPointsForType(type);
 
@@ -68,7 +93,7 @@ class _DeviceMeasurementsGraphState extends State<DeviceMeasurementsGraph> {
 
     setState(() {
       name = _getStringForType(measurementsTypes.first);
-      minXY = FlSpot(0, minY);
+      minXY = FlSpot(minX, minY);
       maxXY = FlSpot(maxX, maxY);
       points = pointsXY;
     });
@@ -79,18 +104,21 @@ class _DeviceMeasurementsGraphState extends State<DeviceMeasurementsGraph> {
         .map((deviceMeasurement) => deviceMeasurement.timestamp.toDouble())
         .toList();
 
-    final minX = pointsX.reduce(min);
+    subtractedTimestamp = pointsX.first;
 
-    return pointsX.map((x) => x - minX).toList();
+    return pointsX.map((x) => x - subtractedTimestamp).toList();
   }
 
   void _changeMeasurementType(MeasurementType type) {
     setState(() {
       name = _getStringForType(type);
+
       points = IterableZip(
               [points.map((point) => point.x), _getYPointsForType(type)])
           .map((pair) => FlSpot(pair[0], pair[1]))
           .toList();
+      minXY = FlSpot(minXY.x, points.map((e) => e.y).reduce(min));
+      maxXY = FlSpot(maxXY.x, points.map((e) => e.y).reduce(max));
     });
   }
 
@@ -115,7 +143,7 @@ class _DeviceMeasurementsGraphState extends State<DeviceMeasurementsGraph> {
         Stack(
           children: <Widget>[
             AspectRatio(
-              aspectRatio: 1.70,
+              aspectRatio: 1.4,
               child: DecoratedBox(
                 decoration: const BoxDecoration(
                   borderRadius: BorderRadius.all(
@@ -125,10 +153,9 @@ class _DeviceMeasurementsGraphState extends State<DeviceMeasurementsGraph> {
                 ),
                 child: Padding(
                   padding: const EdgeInsets.only(
-                    right: 18,
-                    left: 12,
-                    top: 12,
-                    bottom: 12,
+                    right: 35,
+                    top: 10,
+                    bottom: 10,
                   ),
                   child: LineChart(
                     mainData(),
@@ -149,8 +176,8 @@ class _DeviceMeasurementsGraphState extends State<DeviceMeasurementsGraph> {
                 onPressed: () =>
                     _changeMeasurementType(measurementsTypes[index]),
                 style: ElevatedButton.styleFrom(
-                    foregroundColor: Color(0xff02d39a),backgroundColor: Color(0xff232d37)),
-                    
+                    foregroundColor: const Color(0xff02d39a),
+                    backgroundColor: const Color(0xff232d37)),
                 child: Text("${measurementsTypes[index]}"),
               ),
             ),
@@ -163,12 +190,16 @@ class _DeviceMeasurementsGraphState extends State<DeviceMeasurementsGraph> {
   }
 
   Widget bottomTitleWidgets(double value, TitleMeta meta) {
+    final dateTime = DateTime.fromMillisecondsSinceEpoch((value + subtractedTimestamp).toInt() * 1000);
     return SideTitleWidget(
       axisSide: meta.axisSide,
-      space: 8,
-      child: Text(
-        meta.formattedValue,
-        style: style,
+      space: 10,
+      child: RotatedBox(
+        quarterTurns: 0,
+        child: Text(
+          DateFormat('dd/MM/yy\nHH:mm:ss').format(dateTime),
+          style: style,
+        ),
       ),
     );
   }
@@ -176,7 +207,7 @@ class _DeviceMeasurementsGraphState extends State<DeviceMeasurementsGraph> {
   Widget leftTitleWidgets(double value, TitleMeta meta) {
     return SideTitleWidget(
       axisSide: meta.axisSide,
-      space: 8,
+      space: 3,
       child: Text(
         meta.formattedValue,
         style: style,
@@ -208,9 +239,17 @@ class _DeviceMeasurementsGraphState extends State<DeviceMeasurementsGraph> {
           sideTitles: SideTitles(showTitles: false),
         ),
         topTitles: AxisTitles(
-          axisNameWidget: Text(
-            name,
-            style: style,
+          axisNameSize: 30,
+          axisNameWidget: Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Text(
+              name,
+              style: const TextStyle(
+                color: Color(0xff02d39a),
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
           ),
           sideTitles: SideTitles(showTitles: false),
         ),
@@ -218,8 +257,9 @@ class _DeviceMeasurementsGraphState extends State<DeviceMeasurementsGraph> {
           // axisNameWidget: const Text("Time", style: style,),
           sideTitles: SideTitles(
             showTitles: true,
-            reservedSize: 36,
+            reservedSize: 50,
             getTitlesWidget: bottomTitleWidgets,
+            interval: maxXY.x / 3,
           ),
         ),
         leftTitles: AxisTitles(
@@ -227,7 +267,8 @@ class _DeviceMeasurementsGraphState extends State<DeviceMeasurementsGraph> {
           sideTitles: SideTitles(
             showTitles: true,
             getTitlesWidget: leftTitleWidgets,
-            reservedSize: 42,
+            reservedSize: 55,
+            interval: maxXY.y / 3,
           ),
         ),
       ),
@@ -237,12 +278,12 @@ class _DeviceMeasurementsGraphState extends State<DeviceMeasurementsGraph> {
       ),
       minX: minXY.x,
       maxX: maxXY.x,
-      minY: minXY.y,
+      minY: min(minXY.y, 0),
       maxY: maxXY.y,
       lineBarsData: [
         LineChartBarData(
           spots: points,
-          isCurved: true,
+          isCurved: false,
           gradient: LinearGradient(
             colors: gradientColors,
           ),
