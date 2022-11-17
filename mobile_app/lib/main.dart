@@ -48,7 +48,13 @@ class _HomePageState extends State<HomePage> {
       ),
       home: Scaffold(
         appBar: AppBar(
-          title: const Text("Light Energy Management System"),
+          title: const Text(
+            "Light Energy Management System",
+            style: TextStyle(
+              color: Color(0xff23b6e6),
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ),
         body: Column(
           children: [
