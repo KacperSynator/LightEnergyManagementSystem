@@ -84,6 +84,16 @@ class _DeviceMeasurementsGraphState extends State<DeviceMeasurementsGraph> {
     return pointsX.map((x) => x - minX).toList();
   }
 
+  void _changeMeasurementType(MeasurementType type) {
+    setState(() {
+      name = _getStringForType(type);
+      points = IterableZip(
+              [points.map((point) => point.x), _getYPointsForType(type)])
+          .map((pair) => FlSpot(pair[0], pair[1]))
+          .toList();
+    });
+  }
+
   List<double> _getYPointsForType(MeasurementType type) {
     return dataPacket!.deviceMeasurements
         .map((deviceMeasurement) => deviceMeasurement.measurements
@@ -99,28 +109,53 @@ class _DeviceMeasurementsGraphState extends State<DeviceMeasurementsGraph> {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: <Widget>[
-        AspectRatio(
-          aspectRatio: 1.70,
-          child: DecoratedBox(
-            decoration: const BoxDecoration(
-              borderRadius: BorderRadius.all(
-                Radius.circular(18),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Stack(
+          children: <Widget>[
+            AspectRatio(
+              aspectRatio: 1.70,
+              child: DecoratedBox(
+                decoration: const BoxDecoration(
+                  borderRadius: BorderRadius.all(
+                    Radius.circular(18),
+                  ),
+                  color: Color(0xff232d37),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.only(
+                    right: 18,
+                    left: 12,
+                    top: 12,
+                    bottom: 12,
+                  ),
+                  child: LineChart(
+                    mainData(),
+                  ),
+                ),
               ),
-              color: Color(0xff232d37),
             ),
-            child: Padding(
-              padding: const EdgeInsets.only(
-                right: 18,
-                left: 12,
-                top: 12,
-                bottom: 12,
-              ),
-              child: LineChart(
-                mainData(),
+          ],
+        ),
+        SizedBox(
+          width: double.infinity,
+          height: 50,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemBuilder: (ctx, index) => Padding(
+              padding: const EdgeInsets.all(10),
+              child: ElevatedButton(
+                onPressed: () =>
+                    _changeMeasurementType(measurementsTypes[index]),
+                style: ElevatedButton.styleFrom(
+                    foregroundColor: Color(0xff02d39a),backgroundColor: Color(0xff232d37)),
+                    
+                child: Text("${measurementsTypes[index]}"),
               ),
             ),
+            itemCount: measurementsTypes.length,
+            shrinkWrap: true,
           ),
         ),
       ],
