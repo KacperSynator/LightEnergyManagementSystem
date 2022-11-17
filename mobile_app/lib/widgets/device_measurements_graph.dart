@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:fixnum/fixnum.dart';
+import 'package:collection/collection.dart';
+import 'dart:math';
 import 'dart:async';
 
 import '../proto/light_energy_management_system.pb.dart';
@@ -17,27 +19,83 @@ class DeviceMeasurementsGraph extends StatefulWidget {
 }
 
 class _DeviceMeasurementsGraphState extends State<DeviceMeasurementsGraph> {
-    static const style = TextStyle(
-      color: Color(0xff67727d),
-      fontWeight: FontWeight.bold,
-      fontSize: 15,
-    );
+  static const style = TextStyle(
+    color: Color(0xff67727d),
+    fontWeight: FontWeight.bold,
+    fontSize: 15,
+  );
 
   List<Color> gradientColors = [
     const Color(0xff23b6e6),
     const Color(0xff02d39a),
   ];
 
+  DataPacket? dataPacket;
+  List<MeasurementType> measurementsTypes = [];
   String name = "Device: (wololo)";
-  List<Int64> xLabelTime = [Int64(4), Int64(4)];
-  List<double> yLabelValue = [10, 20];
+  FlSpot minXY = FlSpot(0, 0);
+  FlSpot maxXY = FlSpot(10, 10);
+  List<FlSpot> points = [FlSpot(4, 4), FlSpot(10, 10)];
 
   @override
   void initState() {
     widget.deviceMeasurementsStreamController.stream.listen((dataPacket) {
-      // _updateDataPacket(dataPacket);
+      _updateGraph(dataPacket);
     });
     super.initState();
+  }
+
+  void _updateGraph(DataPacket dataPacket) {
+    this.dataPacket = dataPacket;
+
+    measurementsTypes = dataPacket.deviceMeasurements.first.measurements
+        .map(((measurement) => measurement.type))
+        .toList();
+
+    final type = measurementsTypes.first;
+
+    final pointsX = _getNormalizedXPoints();
+
+    final maxX = pointsX.reduce(max);
+
+    final pointsY = _getYPointsForType(type);
+
+    final minY = pointsY.reduce(min);
+    final maxY = pointsY.reduce(max);
+
+    final pointsXY = IterableZip([pointsX, pointsY])
+        .map((pair) => FlSpot(pair[0], pair[1]))
+        .toList();
+
+    setState(() {
+      name = _getStringForType(measurementsTypes.first);
+      minXY = FlSpot(0, minY);
+      maxXY = FlSpot(maxX, maxY);
+      points = pointsXY;
+    });
+  }
+
+  List<double> _getNormalizedXPoints() {
+    final pointsX = dataPacket!.deviceMeasurements
+        .map((deviceMeasurement) => deviceMeasurement.timestamp.toDouble())
+        .toList();
+
+    final minX = pointsX.reduce(min);
+
+    return pointsX.map((x) => x - minX).toList();
+  }
+
+  List<double> _getYPointsForType(MeasurementType type) {
+    return dataPacket!.deviceMeasurements
+        .map((deviceMeasurement) => deviceMeasurement.measurements
+            .where((measurement) => measurement.type == type)
+            .map((measurement) => measurement.value)
+            .first)
+        .toList();
+  }
+
+  String _getStringForType(MeasurementType type) {
+    return "Device: ${dataPacket!.device.name} ($type)";
   }
 
   @override
@@ -71,45 +129,25 @@ class _DeviceMeasurementsGraphState extends State<DeviceMeasurementsGraph> {
   }
 
   Widget bottomTitleWidgets(double value, TitleMeta meta) {
-    Widget text;
-    switch (value.toInt()) {
-      case 2:
-        text = const Text('MAR', style: style);
-        break;
-      case 5:
-        text = const Text('JUN', style: style);
-        break;
-      case 8:
-        text = const Text('SEP', style: style);
-        break;
-      default:
-        text = const Text('', style: style);
-        break;
-    }
-
     return SideTitleWidget(
       axisSide: meta.axisSide,
-      child: text,
+      space: 8,
+      child: Text(
+        meta.formattedValue,
+        style: style,
+      ),
     );
   }
 
   Widget leftTitleWidgets(double value, TitleMeta meta) {
-    String text;
-    switch (value.toInt()) {
-      case 1:
-        text = '10K';
-        break;
-      case 3:
-        text = '30k';
-        break;
-      case 5:
-        text = '50k';
-        break;
-      default:
-        return Container();
-    }
-
-    return Text(text, style: style, textAlign: TextAlign.left);
+    return SideTitleWidget(
+      axisSide: meta.axisSide,
+      space: 8,
+      child: Text(
+        meta.formattedValue,
+        style: style,
+      ),
+    );
   }
 
   LineChartData mainData() {
@@ -117,8 +155,6 @@ class _DeviceMeasurementsGraphState extends State<DeviceMeasurementsGraph> {
       gridData: FlGridData(
         show: true,
         drawVerticalLine: true,
-        horizontalInterval: 1,
-        verticalInterval: 1,
         getDrawingHorizontalLine: (value) {
           return FlLine(
             color: const Color(0xff37434d),
@@ -138,15 +174,17 @@ class _DeviceMeasurementsGraphState extends State<DeviceMeasurementsGraph> {
           sideTitles: SideTitles(showTitles: false),
         ),
         topTitles: AxisTitles(
-          axisNameWidget: Text(name, style: style,),
+          axisNameWidget: Text(
+            name,
+            style: style,
+          ),
           sideTitles: SideTitles(showTitles: false),
         ),
         bottomTitles: AxisTitles(
           // axisNameWidget: const Text("Time", style: style,),
           sideTitles: SideTitles(
             showTitles: true,
-            reservedSize: 30,
-            interval: 1,
+            reservedSize: 36,
             getTitlesWidget: bottomTitleWidgets,
           ),
         ),
@@ -154,7 +192,6 @@ class _DeviceMeasurementsGraphState extends State<DeviceMeasurementsGraph> {
           // axisNameWidget: Text("value", style: style,),
           sideTitles: SideTitles(
             showTitles: true,
-            interval: 1,
             getTitlesWidget: leftTitleWidgets,
             reservedSize: 42,
           ),
@@ -164,21 +201,13 @@ class _DeviceMeasurementsGraphState extends State<DeviceMeasurementsGraph> {
         show: true,
         border: Border.all(color: const Color(0xff37434d)),
       ),
-      minX: 0,
-      maxX: 11,
-      minY: 0,
-      maxY: 6,
+      minX: minXY.x,
+      maxX: maxXY.x,
+      minY: minXY.y,
+      maxY: maxXY.y,
       lineBarsData: [
         LineChartBarData(
-          spots: const [
-            FlSpot(0, 3),
-            FlSpot(2.6, 2),
-            FlSpot(4.9, 5),
-            FlSpot(6.8, 3.1),
-            FlSpot(8, 4),
-            FlSpot(9.5, 3),
-            FlSpot(11, 4),
-          ],
+          spots: points,
           isCurved: true,
           gradient: LinearGradient(
             colors: gradientColors,

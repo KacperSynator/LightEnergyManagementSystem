@@ -1,4 +1,6 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:mobile_app/proto/light_energy_management_system.pbjson.dart';
 import 'dart:async';
 
 import '../proto/light_energy_management_system.pb.dart';
@@ -9,11 +11,13 @@ import '../utils.dart';
 class DevicesList extends StatefulWidget {
   final StreamController<Devices> devicesStreamController;
   final StreamController<Device> deviceNameChangeStreamController;
+  final StreamController<Device> deviceMeasurementsRequestStreamController;
 
   const DevicesList(
       {super.key,
       required this.devicesStreamController,
-      required this.deviceNameChangeStreamController});
+      required this.deviceNameChangeStreamController,
+      required this.deviceMeasurementsRequestStreamController});
 
   @override
   State<DevicesList> createState() => _DevicesListState();
@@ -38,6 +42,7 @@ class _DevicesListState extends State<DevicesList> {
       child: ListView.builder(
         itemBuilder: (ctx, index) => DeviceCard(
           device: devices[index],
+          onTap: _requestDeviceMeasurements,
           onLongPress: _startRequestDeviceNameChange,
         ),
         itemCount: devices.length,
@@ -77,5 +82,9 @@ class _DevicesListState extends State<DevicesList> {
 
     device.name = textController.text;
     widget.deviceNameChangeStreamController.sink.add(device);
+  }
+
+  void _requestDeviceMeasurements(Device device) {
+    widget.deviceMeasurementsRequestStreamController.sink.add(device);
   }
 }

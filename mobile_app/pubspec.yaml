@@ -41,7 +41,6 @@ dependencies:
   protobuf: ^2.1.0
   uuid: ^3.0.6
   fl_chart: ^0.55.2
-
   fixnum: ^1.0.1
 
 dev_dependencies:

@@ -17,14 +17,20 @@ class MobileApp {
   final String uniqueId = getUniqueId();
   final StreamController<Devices> devicesStreamController;
   final StreamController<Device> deviceNameChangeStreamController;
+  final StreamController<Device> deviceMeasurementsRequestStreamController;
   final StreamController<DataPacket> deviceMeasurementsStreamController;
 
   MobileApp(
       {required this.devicesStreamController,
       required this.deviceNameChangeStreamController,
-      required this.deviceMeasurementsStreamController}) {
+      required this.deviceMeasurementsStreamController,
+      required this.deviceMeasurementsRequestStreamController}) {
     deviceNameChangeStreamController.stream.listen((device) async {
       await requestChangeDeviceName(device);
+    });
+
+    deviceMeasurementsRequestStreamController.stream.listen((device) async {
+      await requestDeviceMeasurements(device);
     });
   }
 
@@ -51,7 +57,8 @@ class MobileApp {
 
   Future<bool> requestDeviceMeasurements(Device device) async {
     final mqttPayload = MqttPayload(
-        command: MqttCommand.GetDeviceMeasurements, msg: [device.writeToBuffer()]);
+        command: MqttCommand.GetDeviceMeasurements,
+        msg: [device.writeToBuffer()]);
     final encodedMqttPayload = mqttPayload.writeToBuffer();
     return await _publish(
         "u/$uniqueId", String.fromCharCodes(encodedMqttPayload));

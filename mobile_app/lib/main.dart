@@ -24,11 +24,15 @@ class _HomePageState extends State<HomePage> {
   static final deviceNameChangeStreamController = StreamController<Device>();
   static final deviceMeasurementsStreamController =
       StreamController<DataPacket>();
+  static final deviceMeasurementsRequestStreamController =
+      StreamController<Device>();
 
   final mobileApp = MobileApp(
       devicesStreamController: devicesStreamController,
       deviceNameChangeStreamController: deviceNameChangeStreamController,
-      deviceMeasurementsStreamController: deviceMeasurementsStreamController);
+      deviceMeasurementsStreamController: deviceMeasurementsStreamController,
+      deviceMeasurementsRequestStreamController:
+          deviceMeasurementsRequestStreamController);
 
   @override
   void initState() {
@@ -56,6 +60,8 @@ class _HomePageState extends State<HomePage> {
               devicesStreamController: devicesStreamController,
               deviceNameChangeStreamController:
                   deviceNameChangeStreamController,
+              deviceMeasurementsRequestStreamController:
+                  deviceMeasurementsRequestStreamController,
             ),
           ],
         ),
