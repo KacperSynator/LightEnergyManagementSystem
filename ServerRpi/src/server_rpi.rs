@@ -237,6 +237,8 @@ async fn get_and_send_device_measurements(
         special_fields: SpecialFields::new(),
     };
 
+    info!("DataPacket: {:?}", &data_packet);
+
     let mqtt_payload = MqttPayload {
         command: EnumOrUnknown::new(MqttCommand::GetDeviceMeasurements),
         msg: vec![data_packet.write_to_bytes()?],

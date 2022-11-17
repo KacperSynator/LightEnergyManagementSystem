@@ -124,7 +124,8 @@ fn create_channels_table(connection: &Connection) -> Result<(), Box<dyn Error>> 
         "CREATE TABLE IF NOT EXISTS Channels (
             id_channel INTEGER PRIMARY KEY,
             id_device INTEGER,
-            name TEXT UNIQUE,
+            name TEXT,
+            UNIQUE(id_device, name),
             FOREIGN KEY(id_device) REFERENCES Devices(id_device)
         )",
         (),
@@ -193,7 +194,7 @@ fn add_measurement_to_db(
         &measurement.type_.enum_value_or_default(),
         device_id,
     )?;
-    let channel_id = get_channel_id(connection, &measurement.type_.enum_value_or_default())?;
+    let channel_id = get_channel_id(connection, &measurement.type_.enum_value_or_default(), &device_id)?;
     connection.execute(
         "INSERT INTO Measurements (
                                 id_device,
@@ -269,15 +270,16 @@ fn get_device_id(connection: &Connection, device: &Device) -> Result<u64, Box<dy
 fn get_channel_id(
     connection: &Connection,
     measurement_type: &MeasurementType,
+    device_id: &u64,
 ) -> Result<u64, Box<dyn Error>> {
     let mut stmt = connection.prepare(
         "SELECT id_channel
               FROM Channels
-              WHERE name = ?1",
+              WHERE name = ?1 AND id_device = ?2",
     )?;
 
     Ok(stmt.query_row(
-        [&measurement_type_utils::to_string(measurement_type)],
+        (&measurement_type_utils::to_string(measurement_type), &device_id),
         |row| row.get::<_, u64>(0),
     )?)
 }
@@ -337,11 +339,9 @@ fn get_measurements_of_device_after(
             Measurements.value,
             Measurements.status
         FROM Measurements
-        INNER JOIN Devices
-        ON Measurements.id_device = ?1
         INNER JOIN Channels
         ON Measurements.id_channel = Channels.id_channel
-        WHERE Measurements.timestamp >= ?2
+        WHERE Measurements.timestamp >= ?2 AND Measurements.id_device = ?1
         ORDER BY Measurements.timestamp",
     )?;
 
@@ -453,9 +453,11 @@ mod test {
     fn add_same_channel_twice() -> Result<(), Box<dyn Error>> {
         let connection = connect_to_dummy_db()?;
         let measurement_type = &MeasurementType::Illuminance;
-        let device_id = 1;
+        let device = Device::new();
 
         setup_db(&connection)?;
+        add_device_to_db(&connection, &device)?;
+        let device_id = get_device_id(&connection, &device)?;
         add_channel_to_db(&connection, measurement_type, device_id)?;
         add_channel_to_db(&connection, measurement_type, device_id)?;
 
