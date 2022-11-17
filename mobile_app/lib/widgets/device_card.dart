@@ -18,10 +18,27 @@ class DeviceCard extends StatelessWidget {
     return SizedBox(
       width: double.infinity,
       child: Card(
+        elevation: 3,
+        shadowColor: const Color(0xff02d39a),
+        color: const Color(0xff232d37),
         child: ListTile(
           leading: _getDeviceIcon(device.type),
-          title: Text(device.name),
-          subtitle: Text(device.mac),
+          title: Text(
+            device.name,
+            style: const TextStyle(
+              color: Color(0xff02d39a),
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
+          ),
+          subtitle: Text(
+            device.mac,
+            style: const TextStyle(
+              color: Color(0xff67727d),
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+            ),
+          ),
           onTap: () => onTap(device),
           onLongPress: () => onLongPress(device),
         ),
@@ -30,11 +47,18 @@ class DeviceCard extends StatelessWidget {
   }
 
   Icon _getDeviceIcon(DeviceType type) {
+    const color = Color(0xff23b6e6);
     switch (type) {
       case DeviceType.LampController:
-        return const Icon(Icons.light);
+        return const Icon(
+          Icons.light,
+          color: color,
+        );
       default:
-        return const Icon(Icons.device_unknown);
+        return const Icon(
+          Icons.device_unknown,
+          color: color,
+        );
     }
   }
 }
