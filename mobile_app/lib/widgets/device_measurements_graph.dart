@@ -259,7 +259,7 @@ class _DeviceMeasurementsGraphState extends State<DeviceMeasurementsGraph> {
             showTitles: true,
             reservedSize: 50,
             getTitlesWidget: bottomTitleWidgets,
-            interval: maxXY.x / 3,
+            interval: max(maxXY.x / 3, 0.01),
           ),
         ),
         leftTitles: AxisTitles(
@@ -268,7 +268,7 @@ class _DeviceMeasurementsGraphState extends State<DeviceMeasurementsGraph> {
             showTitles: true,
             getTitlesWidget: leftTitleWidgets,
             reservedSize: 55,
-            interval: maxXY.y / 3,
+            interval: max(maxXY.y / 3, 0.01),
           ),
         ),
       ),
