@@ -116,35 +116,40 @@ void SetupDevice(DataPacket& data_packet) {
     data_packet.device.mac.funcs.encode = &encode_string;
 }
 
-float CalculateDutyCycle(const int& threshold,
-                         const float& current_duty_cycle,
-                         const float& illuminance)
+void ControlLight(const int& lux_threshold, float& dim_duty_cycle,
+                  const float& illuminance, const PwmHandler& lamp_dim)
 {
-    float relative_max_lux = illuminance / (current_duty_cycle + 0.1);
-    float new_duty_cycle = static_cast<float>(threshold) / (relative_max_lux + 0.1);
+    if (digitalRead(kPirPin) == LOW) {
+        Serial.println("No movement detected");
+        return;
+    }
 
-    if (new_duty_cycle > 1.0) new_duty_cycle = 1.0;
-    if (new_duty_cycle < 0.0) new_duty_cycle = 0.0;
+    if (abs(lux_threshold - illuminance) >= 5) {
+        Serial.println("Current illuminace is OK");
+        return;
+    }
 
-    return new_duty_cycle;
-}
+    if (lux_threshold > illuminance) {
+        Serial.println("Illuminance too low");
+        dim_duty_cycle += 0.01f;
+    } else {
+        Serial.println("Illuminance too high");
+        dim_duty_cycle -= 0.01f;
+    }
 
-void ControlLigth(const int& lux_threshold, float& dim_duty_cycle,
-                  const float& illuminance, const PwmHandler& lamp_dim) {
-    float duty = CalculateDutyCycle(lux_threshold, dim_duty_cycle, illuminance);
-    Serial.printf("Current duty: %f\n", dim_duty_cycle);
-    Serial.printf("Calculated duty: %f\n", duty);
+    Serial.printf("New duty: %f\n", dim_duty_cycle);
     Serial.printf("Illuminance: %f\n", illuminance);
+
+    if (dim_duty_cycle > 1.0f) dim_duty_cycle = 1.0f;
     
-    if (duty < 0.1) {
+    if (dim_duty_cycle < 0.1f) {
+        dim_duty_cycle = 0.1f;
         digitalWrite(kRelayPin, HIGH);
-        lamp_dim.DutyCycle(0.1f);
-        dim_duty_cycle = 0.0f;
     } else {
         digitalWrite(kRelayPin, LOW);
-        lamp_dim.DutyCycle(duty);
-        dim_duty_cycle = duty;
     }
+
+    lamp_dim.DutyCycle(dim_duty_cycle);
 }
 
 }  // namespace
@@ -186,7 +191,7 @@ void LampController::Loop() {
         measurements.emplace_back(Measurement{illuminance, Illuminance, Invalid});
     }
 
-    ControlLigth(lux_threshold_, dim_duty_cycle_, measurements.front().value, lamp_dim_);
+    ControlLight(lux_threshold_, dim_duty_cycle_, measurements.front().value, lamp_dim_);
 
     if (!ReadEnergyMeterData(measurements, pzem_)) {
         Serial.println("Failed to read energy meter data!");
