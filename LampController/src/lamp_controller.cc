@@ -2,10 +2,10 @@
 
 namespace {
 using DataPacket = light_energy_management_system_DataPacket;
-using Measurment = light_energy_management_system_Measurement;
-using DeviceMeasurments = light_energy_management_system_DeviceMeasurements;
+using Measurement = light_energy_management_system_Measurement;
+using DeviceMeasurements = light_energy_management_system_DeviceMeasurements;
 using MeasurementType = light_energy_management_system_MeasurementType;
-using Measurments = std::vector<Measurment>;
+using Measurements = std::vector<Measurement>;
 
 constexpr auto Illuminance = light_energy_management_system_MeasurementType_Illuminance;
 constexpr auto Voltage = light_energy_management_system_MeasurementType_Voltage;
@@ -27,7 +27,7 @@ bool encode_string(pb_ostream_t* stream, const pb_field_t* field, void* const* a
 }
 
 bool encode_measurments(pb_ostream_t* stream, const pb_field_t* field, void* const* arg) {
-    const Measurments measurments = *static_cast<Measurments*>(*arg);
+    const Measurements measurments = *static_cast<Measurements*>(*arg);
 
     // Serial.printf("encode_lamp_data: %f, %d\n", measurments.front().value, measurments.front().type);
 
@@ -80,27 +80,28 @@ const std::string EncodeDataPacket(const DataPacket& data) {
 
 }
 
-bool TryReadToLampData(const float& data, Measurments& measurments, const MeasurementType& type) {
+bool ValidateMeasurement(const float& data, Measurements& measurements,
+                         const MeasurementType& type) {
     if (isnan(data)) {
-        measurments.emplace_back(Measurment{0.0f, type, Invalid});
+        measurements.emplace_back(Measurement{0.0f, type, Invalid});
         return false;
     }
 
-    measurments.emplace_back(Measurment{data, type, Valid});
+    measurements.emplace_back(Measurement{data, type, Valid});
     return true;
 }
 
-bool ReadEnergyMeterData(Measurments& measurments, PZEM004Tv30& energy_meter) {
-    bool succes = true;
+bool ReadEnergyMeterData(Measurements& measurements, PZEM004Tv30& energy_meter) {
+    bool success = true;
 
-    succes &= TryReadToLampData(energy_meter.voltage(), measurments, Voltage);
-    succes &= TryReadToLampData(energy_meter.current(),measurments, Current);
-    succes &= TryReadToLampData(energy_meter.power(), measurments, Power);
-    succes &= TryReadToLampData(energy_meter.energy(), measurments, Energy);
-    succes &= TryReadToLampData(energy_meter.frequency(), measurments, Frequency);
-    succes &= TryReadToLampData(energy_meter.pf(), measurments, PowerFactor);
+    success &= ValidateMeasurement(energy_meter.voltage(), measurements, Voltage);
+    success &= ValidateMeasurement(energy_meter.current(),measurements, Current);
+    success &= ValidateMeasurement(energy_meter.power(), measurements, Power);
+    success &= ValidateMeasurement(energy_meter.energy(), measurements, Energy);
+    success &= ValidateMeasurement(energy_meter.frequency(), measurements, Frequency);
+    success &= ValidateMeasurement(energy_meter.pf(), measurements, PowerFactor);
 
-    return succes;
+    return success;
 }
 
 const char* GetMacAddress() {
@@ -177,22 +178,22 @@ void LampController::Loop() {
         // return;
     }
 
-    Measurments measurments{};
+    Measurements measurements{};
     const auto illuminance = light_meter_.readLightLevel();
     if (illuminance >= 0) {
-        measurments.emplace_back(Measurment{illuminance, Illuminance, Valid});
+        measurements.emplace_back(Measurement{illuminance, Illuminance, Valid});
     } else {
-        measurments.emplace_back(Measurment{illuminance, Illuminance, Invalid});
+        measurements.emplace_back(Measurement{illuminance, Illuminance, Invalid});
     }
 
-    ControlLigth(lux_threshold_, dim_duty_cycle_, measurments.front().value, lamp_dim_);
+    ControlLigth(lux_threshold_, dim_duty_cycle_, measurements.front().value, lamp_dim_);
 
-    if (!ReadEnergyMeterData(measurments, pzem_)) {
+    if (!ReadEnergyMeterData(measurements, pzem_)) {
         Serial.println("Failed to read energy meter data!");
     }
 
-    DeviceMeasurments device_measurments = light_energy_management_system_DeviceMeasurements_init_zero;
-    device_measurments.measurements.arg = static_cast<void*>(&measurments);
+    DeviceMeasurements device_measurments = light_energy_management_system_DeviceMeasurements_init_zero;
+    device_measurments.measurements.arg = static_cast<void*>(&measurements);
     device_measurments.measurements.funcs.encode = &encode_measurments;
 
     data_packet_.device_measurements.arg = static_cast<void*>(&device_measurments);
