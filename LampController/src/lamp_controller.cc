@@ -174,24 +174,29 @@ void LampController::Setup() {
 }
 
 void LampController::Loop() {
-    delay(5000);
+    delay(100);
+
+    static unsigned long delayed_time{};
+    const auto time = millis();
+
+    const auto illuminance = light_meter_.readLightLevel();
+    ControlLight(lux_threshold_, dim_duty_cycle_, illuminance, lamp_dim_);
+
+    if (time < delayed_time) return;
+
+    delayed_time = time + 5000;
 
     if (!setup_status_.all_clear) {
         Serial.println(setup_status_.str().c_str());
-        // ble_connection_.SendData(setup_status_.str());
-        // Setup();
-        // return;
     }
 
     Measurements measurements{};
-    const auto illuminance = light_meter_.readLightLevel();
+    
     if (illuminance >= 0) {
         measurements.emplace_back(Measurement{illuminance, Illuminance, Valid});
     } else {
         measurements.emplace_back(Measurement{illuminance, Illuminance, Invalid});
     }
-
-    ControlLight(lux_threshold_, dim_duty_cycle_, measurements.front().value, lamp_dim_);
 
     if (!ReadEnergyMeterData(measurements, pzem_)) {
         Serial.println("Failed to read energy meter data!");
